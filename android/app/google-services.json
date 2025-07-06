@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "358504594305",
+    "project_id": "identicare-591e3",
+    "storage_bucket": "identicare-591e3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:358504594305:android:1d08178b62c250a41e0680",
+        "android_client_info": {
+          "package_name": "com.example.identicare_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBGUBbFVWFePFBy9HaEYL2mdz9sOBjAEyU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
