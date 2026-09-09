@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Konfigurasi RILIS. Cleartext ditolak sepenuhnya.
+
+  Untuk demo, jalankan uvicorn di belakang HTTPS (mis. Cloudflare Tunnel:
+  `cloudflared tunnel --url http://localhost:8000`) lalu build dengan
+  --dart-define=API_BASE_URL=https://<host>. Selain memberi sertifikat sah dalam
+  hitungan detik, cara ini juga selamat dari Wi-Fi lokasi yang memblokir lalu
+  lintas antar-klien di LAN - penyebab kegagalan demo yang sangat umum.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

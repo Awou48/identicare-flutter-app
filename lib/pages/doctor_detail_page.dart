@@ -68,7 +68,15 @@ class DoctorDetailPage extends StatelessWidget {
         child: ElevatedButton(
           onPressed: () {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Janji temu berhasil dibuat! (Simulasi)'), backgroundColor: Colors.green),
+              // Dulu di sini tertulis "Janji temu berhasil dibuat! (Simulasi)"
+              // dengan latar hijau, padahal TIDAK ADA data yang disimpan.
+              // Memberi tahu pengguna bahwa sesuatu berhasil padahal tidak
+              // terjadi apa-apa jauh lebih buruk daripada mengakui fiturnya
+              // belum ada. Endpoint penjadwalan belum dibuat - lihat TODO.md.
+              const SnackBar(
+                content: Text('Fitur janji temu belum tersedia.'),
+                backgroundColor: Colors.orange,
+              ),
             );
             Navigator.of(context).pop();
           },

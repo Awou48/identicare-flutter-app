@@ -1,10 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:identicare_mobile/config/app_config.dart';
 import 'package:identicare_mobile/pages/appointment_page.dart';
 import 'package:identicare_mobile/pages/hospital_info_page.dart';
 import 'package:identicare_mobile/pages/medical_records_page.dart';
 import 'package:identicare_mobile/pages/symptom_checker_page.dart';
 import 'package:identicare_mobile/pages/telemedicine_page.dart';
+import 'package:identicare_mobile/pages/verification/claim_verification_flow_page.dart';
+import 'package:identicare_mobile/services/biometric_attestation_service.dart';
+import 'package:identicare_mobile/services/device_identity_service.dart';
+import 'package:identicare_mobile/services/verification_api_service.dart';
+import 'package:identicare_mobile/state/verification_flow_controller.dart';
 import 'package:identicare_mobile/services/auth_service.dart';
 import 'package:identicare_mobile/widgets/service_card.dart';
 import 'package:provider/provider.dart';
@@ -94,9 +100,15 @@ class HomePage extends StatelessWidget {
           StreamBuilder<DocumentSnapshot>(
             stream: authService.userProfileStream,
             builder: (context, snapshot) {
-              String userName = 'MARCEL SEBASTIAN';
-              if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
-                userName = (snapshot.data!.data() as Map<String, dynamic>)['displayName']?.toUpperCase() ?? 'MARCEL SEBASTIAN';
+              // Sebelumnya nama pengguna default-nya 'MARCEL SEBASTIAN',
+              // sehingga pengguna lain melihat nama itu setiap kali Firestore
+              // lambat merespons.
+              String userName = '';
+              if (snapshot.connectionState == ConnectionState.active &&
+                  snapshot.hasData &&
+                  snapshot.data!.exists) {
+                final data = snapshot.data!.data() as Map<String, dynamic>;
+                userName = (data['displayName'] as String? ?? '').toUpperCase();
               }
               return Text(
                 'Halo, $userName',
@@ -109,6 +121,106 @@ class HomePage extends StatelessWidget {
     );
   }
   
+  /// Buka alur verifikasi 4 langkah.
+  ///
+  /// Controller di-scope PADA halaman alur, bukan di main.dart, sehingga ia
+  /// dibuat saat masuk dan dibuang saat keluar - tidak ada state verifikasi yang
+  /// tertinggal di memori setelah pengguna selesai.
+  Future<void> _startVerification(BuildContext context) async {
+    if (!ClaimVerificationFlowPage.isSupportedPlatform) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Fitur verifikasi biometrik hanya tersedia di aplikasi Android.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final api = Provider.of<VerificationApiService>(context, listen: false);
+    final noBpjs = await authService.getNoBpjs();
+
+    if (!context.mounted) return;
+
+    if (noBpjs == null) {
+      final entered = await _askForBpjs(context);
+      if (entered == null || !context.mounted) return;
+      await authService.setNoBpjs(entered);
+      if (!context.mounted) return;
+      return _openFlow(context, api, entered);
+    }
+    return _openFlow(context, api, noBpjs);
+  }
+
+  Future<void> _openFlow(
+    BuildContext context,
+    VerificationApiService api,
+    String noBpjs,
+  ) async {
+    final attestation = BiometricAttestationService(DeviceIdentityService());
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MultiProvider(
+          providers: [
+            ChangeNotifierProvider(
+              create: (_) => VerificationFlowController(api, attestation),
+            ),
+            Provider<BiometricAttestationService>.value(value: attestation),
+          ],
+          child: ClaimVerificationFlowPage(
+            noBpjs: noBpjs,
+            kodeFaskes: AppConfig.defaultKodeFaskes,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _askForBpjs(BuildContext context) {
+    final controller = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nomor BPJS'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            maxLength: 13,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Nomor BPJS (13 digit)',
+              prefixIcon: Icon(Icons.badge_outlined),
+            ),
+            validator: (value) =>
+                (value == null || !RegExp(r'^[0-9]{13}$').hasMatch(value.trim()))
+                    ? 'Nomor BPJS harus 13 digit'
+                    : null,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context, controller.text.trim());
+              }
+            },
+            child: const Text('Lanjutkan'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMainFeatureCard(BuildContext context) {
     return Card(
       elevation: 8,
@@ -116,9 +228,7 @@ class HomePage extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const SymptomCheckerPage()));
-        },
+        onTap: () => _startVerification(context),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -136,16 +246,16 @@ class HomePage extends StatelessWidget {
                   color: Colors.white.withOpacity(0.2),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.shield_outlined, color: Colors.white, size: 32),
+                child: const Icon(Icons.verified_user_rounded, color: Colors.white, size: 32),
               ),
               const SizedBox(width: 16),
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('CEK GEJALA (AI)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.1)),
+                    Text('VERIFIKASI KLAIM BPJS', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.1)),
                     SizedBox(height: 4),
-                    Text('Dapatkan analisis awal berdasarkan gejala anda', style: TextStyle(color: Colors.white70)),
+                    Text('Verifikasi wajah & sidik jari sebelum mengajukan klaim', style: TextStyle(color: Colors.white70)),
                   ],
                 ),
               ),
@@ -158,6 +268,7 @@ class HomePage extends StatelessWidget {
 
   Widget _buildServicesGrid(BuildContext context) {
     final List<Map<String, dynamic>> features = [
+      {'title': 'Cek Gejala (AI)', 'icon': Icons.shield_outlined, 'color': Colors.teal, 'page': const SymptomCheckerPage()},
       {'title': 'Konsultasi Langsung', 'icon': Icons.calendar_month_outlined, 'color': Colors.blue, 'page': const AppointmentPage()},
       {'title': 'Rekaman Medis', 'icon': Icons.folder_copy_outlined, 'color': Colors.green, 'page': const MedicalRecordsPage()},
       {'title': 'Konsultasi Online', 'icon': Icons.video_call_outlined, 'color': Colors.orange, 'page': const TelemedicinePage()},

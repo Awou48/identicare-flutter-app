@@ -1,0 +1,14 @@
+{
+  "indexes": [
+    {
+      "_comment": "history_page.dart menjalankan where(userId) + orderBy(timestamp desc). Firestore menolak query gabungan seperti ini tanpa index komposit, sehingga tab Konsultasi gagal di project Firebase yang bersih. Terapkan dengan: firebase deploy --only firestore:indexes",
+      "collectionGroup": "riwayat_konsultasi",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

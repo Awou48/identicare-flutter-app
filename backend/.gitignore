@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Secrets — never commit. Losing keys/ means every stored template is unreadable.
+.env
+keys/
+
+# Models are ~170 MB; downloaded manually. See README.md.
+models/
+*.onnx
+
+# Local scratch
+samples/
+*.log

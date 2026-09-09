@@ -1,0 +1,35 @@
+# IdentiCare backend — Windows / Python 3.12 safe.
+# Every package here has a prebuilt cp312 win_amd64 wheel. Nothing compiles.
+
+fastapi>=0.115,<0.120
+uvicorn[standard]>=0.34,<0.40
+pydantic>=2.9,<3
+pydantic-settings>=2.6,<3
+python-multipart>=0.0.12
+
+# Driver: pymongo>=4.10 ships AsyncMongoClient natively. Do NOT use motor (deprecated).
+pymongo[srv]>=4.10,<5
+
+numpy>=1.26,<3
+opencv-python-headless>=4.10        # headless: no Qt DLLs to fight on Windows
+onnxruntime>=1.20,<2                # CPU execution provider
+
+cryptography>=43                    # AES-256-GCM, HKDF, X.509 chain validation
+firebase-admin>=6.5                 # verify Flutter's Firebase ID tokens
+pyasn1>=0.6                         # parse Android KeyDescription ASN.1 extension
+httpx>=0.27                         # Ollama proxy for /analyze_symptoms
+python-json-logger>=2.0
+
+# --- dev ---
+pytest>=8
+pytest-asyncio>=0.24
+ruff>=0.7
+
+# --- DELIBERATELY ABSENT — do not add these ---
+# insightface        no cp312 wheel; source build needs MSVC + Cython. We run its
+#                    ONNX model files directly instead, which needs no package.
+# dlib               requires CMake + MSVC, 20+ min build, frequently fails on Windows.
+# face_recognition   depends on dlib.
+# deepface/tensorflow/torch   2-5 GB for something two ONNX graphs already do.
+# mediapipe          Windows wheels lag Python releases; SCRFD's 5 keypoints suffice.
+# motor              deprecated in favour of pymongo's AsyncMongoClient.

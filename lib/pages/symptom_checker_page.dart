@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:identicare_mobile/pages/result_page.dart';
 import 'package:identicare_mobile/services/api_service.dart';
+import 'package:identicare_mobile/services/verification_api_service.dart';
 import 'package:identicare_mobile/services/auth_service.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -16,7 +17,10 @@ class _SymptomCheckerPageState extends State<SymptomCheckerPage> {
   final ApiService _apiService = ApiService();
   bool _isLoading = false;
 
-  final List<String> _allSymptoms = [
+  /// Daftar cadangan kalau server tidak dapat dihubungi. Sumber utamanya
+  /// sekarang GET /api/v1/symptoms/catalog, sehingga model AI bisa menambah
+  /// atau mengubah gejala tanpa merilis ulang aplikasi.
+  List<String> _allSymptoms = [
     'Sakit kepala', 'Pusing', 'Migrain', 'Kehilangan keseimbangan', 'Batuk', 'Sesak Napas', 'Pilek',
     'Nyeri dada saat bernapas', 'Mual', 'Muntah', 'Diare', 'Sakit perut', 'Sembelit',
     'Nafsu makan menurun', 'Detak jantung tidak teratur', 'Nyeri dada', 'Tekanan darah tinggi',
@@ -28,6 +32,31 @@ class _SymptomCheckerPageState extends State<SymptomCheckerPage> {
   ];
 
   final Set<String> _selectedSymptoms = {};
+  bool _catalogLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadCatalog());
+  }
+
+  Future<void> _loadCatalog() async {
+    final api = Provider.of<VerificationApiService>(context, listen: false);
+    final result = await api.fetchSymptomCatalog();
+    if (!mounted) return;
+    result.when(
+      ok: (gejala) {
+        if (gejala.isNotEmpty) {
+          setState(() {
+            _allSymptoms = gejala;
+            _catalogLoaded = true;
+          });
+        }
+      },
+      // Bukan kegagalan yang perlu ditampilkan: daftar cadangan tetap dipakai.
+      failure: (_) => setState(() => _catalogLoaded = true),
+    );
+  }
 
   Future<void> _processSymptoms() async {
     if (_selectedSymptoms.isEmpty) {
