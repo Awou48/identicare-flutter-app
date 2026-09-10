@@ -1,8 +1,19 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 
+import 'package:http/http.dart' as http;
+import 'package:identicare_mobile/config/app_config.dart';
+
+/// Klien lama untuk analisis gejala.
+///
+/// Base URL-nya dulu IP LAN hardcoded (`http://192.168.0.101:5000`) yang
+/// menunjuk ke server Flask yang sudah tidak ada di mana pun. Sekarang ia
+/// mengambil alamat dari [AppConfig], dan backend FastAPI baru tetap melayani
+/// path `/analyze_symptoms` yang sama supaya kontrak lamanya tidak berubah.
+///
+/// Untuk kode baru, gunakan VerificationApiService.analyzeSymptoms yang
+/// melewati IdenticareApiClient dan memberi error terstruktur.
 class ApiService {
-  final String _baseUrl = "http://192.168.0.101:5000"; 
+  String get _baseUrl => AppConfig.apiBaseUrl;
 
   Future<Map<String, dynamic>> analyzeSymptoms(List<String> symptoms) async {
     try {

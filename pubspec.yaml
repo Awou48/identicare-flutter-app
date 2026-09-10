@@ -6,7 +6,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
+  sdk: '>=3.6.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -19,6 +19,24 @@ dependencies:
   firebase_auth: ^4.20.0
   url_launcher: ^6.3.1
   intl: ^0.19.0
+
+  # --- Verifikasi biometrik (Step 4) ---
+  camera: ^0.11.0               # tangkap frame wajah
+  local_auth: ^2.3.0            # prompt sensor sidik jari perangkat
+  local_auth_android: ^1.0.46   # teks prompt Bahasa Indonesia
+  flutter_secure_storage: ^9.2.2  # rahasia perangkat (jalur attestation Tier A)
+  shared_preferences: ^2.3.2    # override base URL saat debug
+  # 10.x, not 11.x: device_info_plus 11 needs web ^1.0.0 while firebase_core
+  # 2.32.0 pins web ^0.5.1. Downgrading this one plugin is a far smaller change
+  # than moving the whole app to Firebase 3.x mid-feature.
+  device_info_plus: ^10.1.2
+  package_info_plus: ^8.1.0     # app_version
+  crypto: ^3.0.5                # sha256 device_uid, HMAC Tier A
+  image: ^4.3.0                 # rotasi/resize/re-encode JPEG sebelum unggah
+
+  # Menyediakan Poppins. main.dart dulu menyetel fontFamily: 'Poppins' tanpa
+  # aset font apa pun, sehingga aplikasi diam-diam dirender dengan Roboto.
+  google_fonts: ^6.2.1
 
   cupertino_icons: ^1.0.6
 

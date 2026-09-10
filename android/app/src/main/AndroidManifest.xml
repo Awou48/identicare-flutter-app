@@ -1,13 +1,37 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      INTERNET sebelumnya HANYA dideklarasikan di src/debug dan src/profile,
+      sehingga APK rilis sama sekali tidak punya akses jaringan dan seluruh
+      fitur verifikasi mati tanpa jejak error. Perbaikan satu baris.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.fingerprint" android:required="false" />
+
+    <!--
+      Plugin `camera` mendeklarasikan RECORD_AUDIO dan izin penyimpanan di
+      manifest-nya sendiri, sehingga keduanya ikut ter-merge ke APK ini. Kita
+      merekam dengan enableAudio: false dan tidak pernah menulis frame ke galeri,
+      jadi izin-izin itu tidak terpakai.
+
+      Aplikasi verifikasi identitas yang meminta akses MIKROFON tanpa alasan
+      adalah masalah kepercayaan sekaligus privilese berlebih. Dihapus di sini.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
 
     <application
-        android:label="identicare_mobile"
+        android:label="IdentiCare"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"
             android:exported="true"

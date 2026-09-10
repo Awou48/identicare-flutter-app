@@ -10,9 +10,20 @@ class AuthPage extends StatefulWidget {
 }
 
 class _AuthPageState extends State<AuthPage> {
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _nameController.dispose();
+    _bpjsController.dispose();
+    super.dispose();
+  }
+
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _bpjsController = TextEditingController();
   bool _isLogin = true;
   bool _isLoading = false;
 
@@ -34,6 +45,8 @@ class _AuthPageState extends State<AuthPage> {
       error = await authService.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
+        displayName: _nameController.text.trim(),
+        noBpjs: _bpjsController.text.trim(),
       );
     }
 
@@ -73,6 +86,35 @@ class _AuthPageState extends State<AuthPage> {
                   style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 40),
+                if (!_isLogin) ...[
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Lengkap',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    textCapitalization: TextCapitalization.words,
+                    validator: (value) => (value == null || value.trim().length < 3)
+                        ? 'Masukkan nama lengkap Anda'
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _bpjsController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nomor BPJS (13 digit)',
+                      prefixIcon: Icon(Icons.badge_outlined),
+                      helperText: 'Diperlukan untuk verifikasi klaim',
+                    ),
+                    keyboardType: TextInputType.number,
+                    maxLength: 13,
+                    validator: (value) =>
+                        (value == null || !RegExp(r'^[0-9]{13}$').hasMatch(value.trim()))
+                            ? 'Nomor BPJS harus 13 digit'
+                            : null,
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined)),

@@ -1,0 +1,24 @@
+line-length = 110
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[lint.isort]
+# scripts/_bootstrap_path must be imported before any `app.*` import, since it is
+# what puts backend/ on sys.path. Treat it as first-party so isort keeps it above.
+known-first-party = ["app", "_bootstrap_path"]
+
+[lint.flake8-bugbear]
+# FastAPI's whole dependency-injection design puts these calls in argument
+# defaults. B008 exists to catch mutable defaults; these are the framework idiom,
+# not a bug.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Query",
+    "fastapi.Header",
+    "fastapi.Body",
+    "fastapi.Path",
+]

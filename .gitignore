@@ -43,3 +43,21 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# --- Python backend (backend/.gitignore has the finer-grained rules) ---
+backend/.venv/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/.ruff_cache/
+
+# Secrets. Losing backend/keys/kek.bin makes every stored biometric template
+# permanently unreadable, so it is backed up out of band, never committed.
+backend/.env
+backend/keys/
+
+# Face ONNX models (~170 MB), downloaded manually. See backend/README.md.
+backend/models/
+*.onnx
+
+# Android release signing
+android/key.properties

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:identicare_mobile/pages/activity_page.dart';
 import 'package:identicare_mobile/pages/appointment_page.dart';
-import 'package:identicare_mobile/pages/history_page.dart';
 import 'package:identicare_mobile/pages/home_page.dart';
 import 'package:identicare_mobile/pages/profile_page.dart';
 
@@ -16,8 +16,9 @@ class _MainNavigatorState extends State<MainNavigator> {
 
   static const List<Widget> _pages = <Widget>[
     HomePage(),
-    AppointmentPage(), // Placeholder untuk Janji Temu
-    HistoryPage(),     // Placeholder untuk Riwayat
+    AppointmentPage(),
+    // Dua sumber: Firestore (konsultasi) + MongoDB (verifikasi biometrik).
+    ActivityPage(),
     ProfilePage(),
   ];
 
@@ -30,7 +31,10 @@ class _MainNavigatorState extends State<MainNavigator> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages.elementAt(_selectedIndex),
+      // IndexedStack, bukan elementAt: sebelumnya state tiap tab (posisi
+      // scroll, riwayat yang sudah dimuat) hilang setiap kali pengguna
+      // berpindah tab.
+      body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(

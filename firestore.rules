@@ -1,0 +1,118 @@
+rules_version = '2';
+
+// Aturan keamanan Firestore IdentiCare.
+//
+// Sebelumnya berkas ini TIDAK ADA, sehingga project berjalan dengan aturan
+// default. Dalam mode test, `riwayat_konsultasi` - yang berisi gejala kesehatan
+// pengguna - dapat dibaca dan ditulis oleh siapa pun yang tahu ID project. Itu
+// paparan data terbesar yang aktif di repo ini, dan tidak berkaitan dengan fitur
+// biometrik.
+//
+// Prinsip di sini:
+//   1. Tolak semuanya secara default; izinkan hanya yang eksplisit disebut.
+//   2. Pengguna hanya bisa menyentuh dokumennya sendiri.
+//   3. Riwayat bersifat append-only - catatan medis tidak boleh diedit atau
+//      dihapus diam-diam oleh klien.
+//   4. Klien tidak boleh menulis field yang menentukan kepemilikan atau
+//      kepercayaan (mis. userId milik orang lain).
+//
+// CATATAN: data BPJS, template biometrik, dan log verifikasi TIDAK ada di
+// Firestore. Semuanya ada di MongoDB di belakang API Python, yang punya
+// otorisasinya sendiri. Berkas ini hanya mengamankan bagian Firebase.
+//
+// Terapkan dengan:
+//   firebase deploy --only firestore:rules
+//
+// Uji dengan emulator sebelum menerapkan ke produksi:
+//   firebase emulators:start --only firestore
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- helper ------------------------------------------------------ //
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Field yang tidak boleh diubah atau dihapus oleh klien setelah dibuat.
+    //
+    // Urutan pengecekannya penting. Versi pertama aturan ini berbunyi
+    // `!(field in request.resource.data) || ...`, yang justru MENGIZINKAN klien
+    // menghapus field tersebut - cukup kirim dokumen tanpa `createdAt` dan
+    // pemeriksaannya lolos. Selain itu, membaca `resource.data[field]` pada
+    // dokumen yang belum punya field itu akan melempar error dan menolak update
+    // yang sebenarnya sah.
+    function immutableUnchanged(field) {
+      return !(field in resource.data)
+          || (field in request.resource.data
+              && request.resource.data[field] == resource.data[field]);
+    }
+
+    // --- users/{uid} -------------------------------------------------- //
+    // Profil: email, displayName, phoneNumber, noBpjs, createdAt.
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+
+      allow create: if isOwner(userId)
+                    && request.resource.data.email is string
+                    && request.resource.data.displayName is string
+                    && request.resource.data.displayName.size() > 0
+                    && request.resource.data.displayName.size() <= 200
+                    // Nomor BPJS boleh kosong saat dibuat, tetapi kalau diisi
+                    // harus 13 digit - server tetap memvalidasinya juga.
+                    && (
+                         !('noBpjs' in request.resource.data)
+                         || request.resource.data.noBpjs == ''
+                         || request.resource.data.noBpjs.matches('^[0-9]{13}$')
+                       );
+
+      allow update: if isOwner(userId)
+                    && immutableUnchanged('createdAt')
+                    // Email berasal dari Firebase Auth; mengubahnya di sini
+                    // hanya membuat kedua sumber tidak sinkron.
+                    && immutableUnchanged('email')
+                    && (
+                         !('noBpjs' in request.resource.data)
+                         || request.resource.data.noBpjs == ''
+                         || request.resource.data.noBpjs.matches('^[0-9]{13}$')
+                       );
+
+      // Penghapusan akun harus lewat proses server yang juga membersihkan
+      // data peserta dan template biometrik di MongoDB.
+      allow delete: if false;
+    }
+
+    // --- riwayat_konsultasi ------------------------------------------- //
+    // Ditulis symptom_checker_page.dart, dibaca history_page.dart.
+    // Berisi gejala kesehatan: pribadi, dan hanya boleh dilihat pemiliknya.
+    match /riwayat_konsultasi/{docId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      // userId pada dokumen baru HARUS milik pemanggil. Tanpa ini, siapa pun
+      // yang login bisa menyisipkan riwayat palsu ke akun orang lain.
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.gejala is list
+                    && request.resource.data.gejala.size() > 0
+                    && request.resource.data.gejala.size() <= 100
+                    && request.resource.data.keys().hasOnly(
+                         ['userId', 'email', 'gejala', 'hasilAI', 'timestamp']
+                       );
+
+      // Append-only. Catatan kesehatan tidak boleh diubah atau dihapus dari
+      // klien - kalau perlu koreksi, itu operasi server yang terjejak audit.
+      allow update, delete: if false;
+    }
+
+    // --- default ------------------------------------------------------ //
+    // Semua koleksi lain ditolak. Kalau nanti ada koleksi baru, ia harus
+    // ditambahkan di sini secara sadar, bukan ikut terbuka begitu saja.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

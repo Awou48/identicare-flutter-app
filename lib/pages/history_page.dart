@@ -5,7 +5,11 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class HistoryPage extends StatelessWidget {
-  const HistoryPage({super.key});
+  const HistoryPage({super.key, this.embedded = false});
+
+  /// Saat true, halaman ini berada di dalam TabBarView ActivityPage, jadi ia
+  /// tidak boleh membuat Scaffold/AppBar sendiri.
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
@@ -14,18 +18,16 @@ class HistoryPage extends StatelessWidget {
 
     // Jika tidak ada user yang login, tampilkan pesan
     if (user == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Riwayat Konsultasi')),
-        body: const Center(child: Text('Silakan login untuk melihat riwayat.')),
-      );
+      const message = Center(child: Text('Silakan login untuk melihat riwayat.'));
+      return embedded
+          ? message
+          : Scaffold(
+              appBar: AppBar(title: const Text('Riwayat Konsultasi')),
+              body: message,
+            );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Riwayat Konsultasi'),
-      ),
-      // StreamBuilder akan otomatis update saat ada data baru di Firestore
-      body: StreamBuilder<QuerySnapshot>(
+    final body = StreamBuilder<QuerySnapshot>(
         // Query ke Firestore: ambil data dari koleksi 'riwayat_konsultasi'
         // hanya untuk user yang sedang login (berdasarkan userId)
         // dan urutkan berdasarkan yang paling baru (timestamp descending)
@@ -108,7 +110,13 @@ class HistoryPage extends StatelessWidget {
             },
           );
         },
-      ),
-    );
+      );
+
+    return embedded
+        ? body
+        : Scaffold(
+            appBar: AppBar(title: const Text('Riwayat Konsultasi')),
+            body: body,
+          );
   }
 }
