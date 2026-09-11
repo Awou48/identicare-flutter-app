@@ -10,8 +10,9 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app import db as database
 from app.config import Settings, get_settings
-from app.security import crypto, firebase_auth
+from app.security import crypto, firebase_auth, staff_auth
 from app.security.firebase_auth import CurrentUser
+from app.security.staff_auth import ROLE_SUPERVISOR, StaffPrincipal
 from app.utils.errors import ApiError
 
 
@@ -76,7 +77,33 @@ async def facility_key(
     raise ApiError("INVALID_API_KEY", 403)
 
 
+async def current_staff(
+    x_staff_token: Annotated[str | None, Header()] = None,
+) -> StaffPrincipal:
+    """Authenticated staff member.
+
+    Deliberately a separate header from Authorization: a request can legitimately
+    carry BOTH a participant's Firebase token and a staff token at the same time
+    (the patient is present at the desk while the officer acts), and collapsing
+    them into one header would make that ambiguous.
+    """
+    if not x_staff_token:
+        raise ApiError(
+            "UNAUTHENTICATED", 401, message="Header X-Staff-Token wajib diisi untuk aksi petugas."
+        )
+    return staff_auth.verify_token(database.get_kek(), x_staff_token)
+
+
+async def current_supervisor(
+    staff: Annotated[StaffPrincipal, Depends(current_staff)],
+) -> StaffPrincipal:
+    staff.require(ROLE_SUPERVISOR)
+    return staff
+
+
 CurrentUserDep = Annotated[CurrentUser, Depends(current_user)]
+StaffDep = Annotated[StaffPrincipal, Depends(current_staff)]
+SupervisorDep = Annotated[StaffPrincipal, Depends(current_supervisor)]
 DbDep = Annotated[AsyncDatabase, Depends(get_database)]
 SettingsDep = Annotated[Settings, Depends(get_settings_dep)]
 SessionTokenDep = Annotated[str, Depends(session_token)]

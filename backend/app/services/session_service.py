@@ -34,6 +34,10 @@ NEXT_STEP: dict[str, str | None] = {
     "rejected": None,
     "expired": None,
     "cancelled": None,
+    # The override path runs through its own endpoints, not through the step
+    # sequence, but it still passes require_state() so nothing can skip audit.
+    "override_pending": None,
+    "override_rejected": None,
 }
 
 STEP_TO_STATE = {
@@ -43,7 +47,15 @@ STEP_TO_STATE = {
     "commit": "committed",
 }
 
-TERMINAL = {"committed", "rejected", "expired", "cancelled"}
+# `rejected` is NO LONGER terminal: it is the entry point to the break-glass
+# path. A face that cannot be scanned because of bruising or burns must not be a
+# dead end - the proposal names exactly those cases, and turning those patients
+# away would deny care to the people the system claims to serve.
+TERMINAL = {"committed", "expired", "cancelled", "override_rejected"}
+
+# States from which a staff override may be requested.
+OVERRIDE_ELIGIBLE = {"rejected"}
+OVERRIDE_PENDING = "override_pending"
 
 REQUIRED_STEPS = ["face", "fingerprint", "review"]
 

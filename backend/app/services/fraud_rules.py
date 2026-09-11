@@ -27,6 +27,10 @@ SHARED_DEVICE_LIMIT = 3
 FAILED_ATTEMPT_HOURS = 24
 FAILED_ATTEMPT_LIMIT = 5
 OFF_HOURS_WIB = (0, 5)
+# Overrides per staff member over a rolling window before the frequency rule
+# escalates to critical.
+OVERRIDE_WEEKLY_LIMIT = 5
+OVERRIDE_WINDOW_DAYS = 7
 EMERGENCY_POLI = {"IGD", "Gawat Darurat", "Emergency"}
 WIB_OFFSET_HOURS = 7
 
@@ -77,6 +81,8 @@ async def evaluate(
     signals += _software_key_only(session)
     signals += _off_hours(session, now)
     signals += _menunggak(peserta)
+    signals += _manual_override(session)
+    signals += await _staff_override_frequency(db, session, now)
 
     score = min(100, sum(s.weight for s in signals))
     band, decision = band_for(score, signals)
@@ -316,6 +322,70 @@ def _menunggak(peserta) -> list[Signal]:
             15,
             "Peserta memiliki tunggakan iuran",
             {"tunggakan_bulan": months, "status": peserta.get("status_kepesertaan")},
+        )
+    ]
+
+
+def _manual_override(session) -> list[Signal]:
+    """A break-glass override is always worth a human look.
+
+    It is not an accusation - most overrides are legitimate - but an approved
+    claim that skipped biometric proof must never be indistinguishable from one
+    that passed it.
+    """
+    override = session.get("override") or {}
+    if override.get("status") != "approved":
+        return []
+    return [
+        Signal(
+            "MANUAL_OVERRIDE",
+            "high",
+            25,
+            "Klaim disetujui melalui override petugas",
+            {
+                "reason_code": override.get("reason_code"),
+                "requested_by": str(override.get("requested_by")),
+                "approved_by": str(override.get("approved_by")),
+                "faskes_id": str(session.get("context", {}).get("faskes_id")),
+            },
+        )
+    ]
+
+
+async def _staff_override_frequency(db, session, now) -> list[Signal]:
+    """THE control that catches insider fraud.
+
+    One override is a bruised face. Twenty in a week from the same staff member
+    is not a run of bad luck - it is the override being used as the fraud
+    mechanism, which is precisely the risk a break-glass path introduces.
+    """
+    override = session.get("override") or {}
+    approver = override.get("approved_by")
+    if override.get("status") != "approved" or not approver:
+        return []
+
+    since = now - timedelta(days=OVERRIDE_WINDOW_DAYS)
+    count = await db.verification_sessions.count_documents(
+        {
+            "override.approved_by": approver,
+            "override.status": "approved",
+            "created_at": {"$gte": since},
+        }
+    )
+    if count <= OVERRIDE_WEEKLY_LIMIT:
+        return []
+    return [
+        Signal(
+            "STAFF_OVERRIDE_FREQUENCY",
+            "critical",
+            35,
+            "Petugas melakukan override terlalu sering",
+            {
+                "staff_id": str(approver),
+                "override_count": count,
+                "window_days": OVERRIDE_WINDOW_DAYS,
+                "limit": OVERRIDE_WEEKLY_LIMIT,
+            },
         )
     ]
 

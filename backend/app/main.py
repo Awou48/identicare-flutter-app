@@ -16,7 +16,17 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import db as database
 from app.config import get_settings
-from app.routers import enrollment, face, fingerprint, fraud, health, sessions, symptoms
+from app.routers import (
+    enrollment,
+    face,
+    fingerprint,
+    fraud,
+    health,
+    override,
+    sessions,
+    staff,
+    symptoms,
+)
 from app.routers import history as history_router
 from app.security import firebase_auth
 from app.services import face_engine
@@ -180,6 +190,8 @@ app.include_router(enrollment.router, prefix=API_PREFIX)
 app.include_router(sessions.router, prefix=API_PREFIX)
 app.include_router(face.router, prefix=API_PREFIX)
 app.include_router(fingerprint.router, prefix=API_PREFIX)
+app.include_router(override.router, prefix=API_PREFIX)
+app.include_router(staff.router, prefix=API_PREFIX)
 app.include_router(history_router.router, prefix=API_PREFIX)
 app.include_router(fraud.router, prefix=API_PREFIX)
 # symptoms carries its own paths: the legacy /analyze_symptoms at the root plus

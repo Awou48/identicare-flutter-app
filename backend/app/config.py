@@ -41,6 +41,21 @@ class Settings(BaseSettings):
     liveness_min_score: float = 0.70
     face_max_attempts: int = 3
 
+    # --- Enrolment identity proofing --- #
+    # A template younger than this cannot underwrite a high-value claim. Bounds
+    # the damage from an enrolment that was fraudulent but not yet detected.
+    enrollment_cooling_hours: int = 24
+    # Enrolment de-duplication is deliberately STRICTER than the in-claim
+    # collision threshold: a false reject at enrolment costs one retry, a false
+    # accept creates a permanently poisoned identity.
+    enrollment_dedup_threshold: float = 0.45
+
+    # --- Staff override --- #
+    # Overrides per staff member over a rolling week before the frequency rule
+    # escalates to critical. A nurse overriding twenty times a day IS the fraud.
+    override_staff_weekly_limit: int = 5
+    override_window_days: int = 7
+
     # --- Sessions ---
     session_ttl_seconds: int = 600
     nonce_ttl_seconds: int = 120

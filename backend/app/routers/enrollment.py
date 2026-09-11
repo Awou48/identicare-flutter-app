@@ -22,7 +22,7 @@ from app.deps import DbDep, OperatorDep, RequestIdDep, SettingsDep
 from app.schemas.common import OkResponse
 from app.schemas.peserta import PesertaCreate, PesertaCreated
 from app.security import crypto, rotation
-from app.services import audit, face_engine, matcher
+from app.services import audit, enrollment_service, face_engine, matcher
 from app.utils import images
 from app.utils.errors import ApiError
 
@@ -106,6 +106,7 @@ async def enroll_face(
     no_bpjs: str = Form(...),
     frames: list[UploadFile] = File(...),
     replace: bool = Form(False),
+    assurance: str = Form(enrollment_service.ASSURANCE_SELF),
 ) -> dict:
     """Enrol a face from a 3-frame burst.
 
@@ -113,6 +114,12 @@ async def enroll_face(
     and checked for mutual agreement before the normalised mean is stored. That
     check is what stops an operator accidentally enrolling two different people
     into one record.
+
+    SINCE v2: no template is activated until the face has been swept 1:N against
+    every active template. Before that gate existed, an insider could enrol their
+    own face against someone else's BPJS number and every later verification
+    would then succeed CORRECTLY - the fraud becomes permanently invisible,
+    because the biometric genuinely matches what is on file.
     """
     engine = face_engine.get_engine()
     if engine is None:
@@ -151,7 +158,47 @@ async def enroll_face(
                 details={"min_pairwise_cosine": round(worst, 4), "required": ENROLL_CONSISTENCY_MIN},
             )
 
-    mean = rotation.l2_normalize(np.mean(np.stack(embeddings), axis=0))
+    mean = enrollment_service.normalized_mean(embeddings)
+
+    # ----------------------------------------------------------------- #
+    # THE GATE. Sweep before activating anything.
+    # ----------------------------------------------------------------- #
+    rot = database.get_rotation()
+    request = await enrollment_service.create_request(
+        db,
+        no_bpjs=no_bpjs,
+        assurance=assurance,
+        staff=None,
+        faskes_id=(peserta.get("faskes_tingkat1") or {}).get("faskes_id"),
+    )
+    dedup = await enrollment_service.run_dedup_gate(
+        db,
+        rot,
+        mean,
+        request_id=request["_id"],
+        peserta_id=peserta["_id"],
+        threshold=settings.enrollment_dedup_threshold,
+    )
+    if not dedup.passed:
+        await enrollment_service.raise_duplicate_signal(
+            db, request_id=request["_id"], no_bpjs=no_bpjs, outcome=dedup
+        )
+        crypto.wipe(mean)
+        raise ApiError(
+            "DUPLICATE_FACE",
+            409,
+            message="Wajah ini sudah terdaftar atas peserta lain. "
+            "Pendaftaran ditolak dan dilaporkan untuk ditinjau.",
+            details={
+                "matches": len(dedup.hits),
+                "top_score": dedup.top_score,
+                "enrollment_request_id": str(request["_id"]),
+            },
+        )
+
+    await enrollment_service.mark_pending_approval(
+        db, request_id=request["_id"], quality=qualities[0] if qualities else {}
+    )
 
     now = datetime.now(UTC)
     if active:
@@ -171,7 +218,6 @@ async def enroll_face(
     ).inserted_id
 
     kek = database.get_kek()
-    rot = database.get_rotation()
     aad = crypto.build_aad(peserta["_id"], template_id, 1)
 
     await db.biometric_templates.update_one(
@@ -193,10 +239,19 @@ async def enroll_face(
                     "frames_submitted": len(payloads),
                     "request_id": request_id,
                 },
+                "assurance": assurance,
+                "enrollment_request_id": request["_id"],
                 "revoked_at": None,
                 "schema_version": 1,
             }
         },
+    )
+    await enrollment_service.attach_template(
+        db, request_id=request["_id"], template_id=template_id, peserta_id=peserta["_id"]
+    )
+    await db.enrollment_requests.update_one(
+        {"_id": request["_id"]},
+        {"$set": {"status": enrollment_service.STATUS_APPROVED, "decided_at": now}},
     )
     await db.peserta.update_one(
         {"_id": peserta["_id"]},
@@ -220,6 +275,13 @@ async def enroll_face(
         "frames_used": len(embeddings),
         "replaced": bool(active),
         "quality": qualities[0] if qualities else {},
+        "assurance": assurance,
+        "enrollment_request_id": str(request["_id"]),
+        "dedup": {
+            "passed": True,
+            "candidates_checked": dedup.checked,
+            "top_score": dedup.top_score,
+        },
     }
 
 
