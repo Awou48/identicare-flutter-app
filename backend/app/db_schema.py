@@ -34,10 +34,19 @@ SESSION_STATUS = [
     "rejected",
     "expired",
     "cancelled",
+    # Break-glass. A rejected session can be escalated for staff override rather
+    # than dead-ending - the proposal explicitly covers faces unscannable due to
+    # bruising and fingers unreadable after burns, and turning those patients
+    # away would deny care to exactly the people the system claims to serve.
+    "override_pending",
+    "override_rejected",
 ]
 STEP_NAMES = ["face", "fingerprint", "review", "commit"]
 STEP_STATUS = ["pending", "passed", "failed"]
-DECISIONS = ["APPROVED", "REVIEW", "REJECTED"]
+# APPROVED_WITH_OVERRIDE is deliberately a SEPARATE decision, never folded into
+# APPROVED. An override must stay distinguishable forever in the audit log and in
+# BPJS reporting, otherwise the break-glass path silently becomes the normal one.
+DECISIONS = ["APPROVED", "APPROVED_WITH_OVERRIDE", "REVIEW", "REJECTED"]
 RISK_BANDS = ["LOW", "MEDIUM", "HIGH"]
 
 MODALITIES = ["face", "fingerprint_key"]
@@ -46,6 +55,35 @@ SECURITY_LEVELS = ["TEE", "STRONGBOX", "SOFTWARE"]
 TRUST_LEVELS = ["hardware", "software", "untrusted"]
 SEVERITIES = ["info", "low", "medium", "high", "critical"]
 SIGNAL_STATUS = ["open", "reviewing", "confirmed", "dismissed"]
+
+STAFF_ROLES = ["petugas", "supervisor", "investigator", "admin"]
+
+# Level of assurance of an enrolment, carried on the resulting template. A claim
+# ceiling is applied per level, so a weakly-proven identity cannot support a
+# high-value claim.
+ASSURANCE_LEVELS = ["SELF_ASSERTED", "DUKCAPIL_VERIFIED", "ASSISTED_DUAL_CONTROL"]
+
+ENROLLMENT_STATUS = [
+    "draft",
+    "pending_dedup",
+    "pending_approval",
+    "approved",
+    "rejected_duplicate",
+    "rejected_review",
+]
+
+# Fixed enum, not free text. Free-text-only reasons are unanalysable, and the
+# whole point of recording a reason is to spot patterns across staff and faskes.
+OVERRIDE_REASONS = [
+    "CEDERA_WAJAH",
+    "LUKA_BAKAR_JARI",
+    "DISABILITAS",
+    "KEGAGALAN_PERANGKAT",
+    "PENCAHAYAAN_BURUK",
+    "LAINNYA",
+]
+
+CONSENT_PURPOSES = ["biometric_enrollment", "biometric_verification", "fraud_analytics"]
 
 # The encrypted envelope, reused by several collections.
 _ENC_ENVELOPE = {
@@ -130,6 +168,11 @@ VALIDATORS: dict[str, dict[str, Any]] = {
             "curve": {"bsonType": "string"},
             "attestation": {"bsonType": "object"},
             "status": {"enum": TEMPLATE_STATUS},
+            # How well the identity behind this template was proven. A template
+            # with no assurance recorded predates the enrolment pipeline and is
+            # treated as SELF_ASSERTED (the weakest) by the claim ceiling.
+            "assurance": {"enum": ASSURANCE_LEVELS},
+            "enrollment_request_id": {"bsonType": ["objectId", "null"]},
             "created_at": {"bsonType": "date"},
             "revoked_at": {"bsonType": ["date", "null"]},
             "schema_version": {"bsonType": "int"},
@@ -198,6 +241,7 @@ VALIDATORS: dict[str, dict[str, Any]] = {
             "steps": {"bsonType": "object"},
             "risk": {"bsonType": "object"},
             "result": {"bsonType": ["object", "null"]},
+            "override": {"bsonType": ["object", "null"]},
             "idempotency_key": {"bsonType": ["string", "null"]},
             "created_at": {"bsonType": "date"},
             "updated_at": {"bsonType": "date"},
@@ -261,6 +305,65 @@ VALIDATORS: dict[str, dict[str, Any]] = {
             "used": {"bsonType": "bool"},
             "issued_at": {"bsonType": "date"},
             "expires_at": {"bsonType": "date"},
+        },
+    },
+    "staff": {
+        "bsonType": "object",
+        "required": ["nama", "role", "password_hash", "active", "created_at"],
+        "properties": {
+            "nama": {"bsonType": "string", "minLength": 1},
+            "nip": {"bsonType": ["string", "null"]},
+            "role": {"enum": STAFF_ROLES},
+            "faskes_id": {"bsonType": ["objectId", "null"]},
+            "password_hash": {"bsonType": "string", "minLength": 20},
+            "active": {"bsonType": "bool"},
+            "created_at": {"bsonType": "date"},
+            "last_login": {"bsonType": ["date", "null"]},
+        },
+    },
+    "enrollment_requests": {
+        "bsonType": "object",
+        "required": ["no_bpjs", "status", "assurance", "created_at"],
+        "properties": {
+            "no_bpjs": {"bsonType": "string", "pattern": "^[0-9]{13}$"},
+            "peserta_id": {"bsonType": ["objectId", "null"]},
+            "status": {"enum": ENROLLMENT_STATUS},
+            "assurance": {"enum": ASSURANCE_LEVELS},
+            # Who captured and who approved. These MUST differ - four-eyes is
+            # enforced in enrollment_service, and stored so it is auditable.
+            "captured_by": {"bsonType": ["objectId", "null"]},
+            "approved_by": {"bsonType": ["objectId", "null"]},
+            "faskes_id": {"bsonType": ["objectId", "null"]},
+            # Result of the mandatory 1:N sweep. An empty list is a PASS that was
+            # actually performed; a missing field means the gate never ran.
+            "dedup": {"bsonType": "object"},
+            "quality": {"bsonType": "object"},
+            "rejection_reason": {"bsonType": ["string", "null"]},
+            "template_id": {"bsonType": ["objectId", "null"]},
+            # KTP / BPJS card evidence, AES-GCM encrypted. Never plaintext.
+            "evidence": {"bsonType": "object"},
+            "dukcapil": {"bsonType": "object"},
+            "created_at": {"bsonType": "date"},
+            "updated_at": {"bsonType": "date"},
+            "decided_at": {"bsonType": ["date", "null"]},
+            "schema_version": {"bsonType": "int"},
+        },
+    },
+    "consent": {
+        "bsonType": "object",
+        "required": ["peserta_id", "purpose", "version", "granted_at"],
+        "properties": {
+            "peserta_id": {"bsonType": "objectId"},
+            "purpose": {"enum": CONSENT_PURPOSES},
+            "version": {"bsonType": "string"},
+            # Hash of the exact consent text shown. Without this you can prove
+            # that they consented but not to WHAT, which UU PDP 27/2022 requires
+            # for data pribadi spesifik.
+            "text_hash": {"bsonType": "string", "pattern": "^[0-9a-f]{64}$"},
+            "granted_at": {"bsonType": "date"},
+            "granted_via": {"bsonType": "string"},
+            "revoked_at": {"bsonType": ["date", "null"]},
+            "evidence": {"bsonType": "object"},
         },
     },
     "audit_log": {
@@ -354,6 +457,14 @@ INDEXES: dict[str, list[IndexModel]] = {
             ],
             name="duplicate_claim_lookup",
         ),
+        # Drives STAFF_OVERRIDE_FREQUENCY: count overrides per staff member over
+        # a rolling window. Partial, because overrides are a small minority of
+        # sessions and indexing every session under this key would be wasteful.
+        IndexModel(
+            [("override.approved_by", ASCENDING), ("created_at", DESCENDING)],
+            name="override_by_staff",
+            partialFilterExpression={"override.approved_by": {"$exists": True}},
+        ),
         # PARTIAL TTL - this is load-bearing. Only sessions that were never started
         # self-delete. A plain TTL here would quietly eat every completed session,
         # and those are the permanent audit log. Asserted in
@@ -405,6 +516,31 @@ INDEXES: dict[str, list[IndexModel]] = {
             [("expires_at", ASCENDING)], name="ttl_nonce", expireAfterSeconds=0
         ),
         IndexModel([("session_id", ASCENDING)], name="session"),
+    ],
+    "staff": [
+        IndexModel([("nip", ASCENDING)], name="uniq_nip", unique=True,
+                   partialFilterExpression={"nip": {"$type": "string"}}),
+        IndexModel([("faskes_id", ASCENDING), ("role", ASCENDING)], name="faskes_role"),
+        IndexModel([("active", ASCENDING)], name="active"),
+    ],
+    "enrollment_requests": [
+        IndexModel([("no_bpjs", ASCENDING), ("created_at", DESCENDING)], name="bpjs_recent"),
+        IndexModel([("status", ASCENDING), ("created_at", DESCENDING)], name="status_recent"),
+        IndexModel([("captured_by", ASCENDING), ("created_at", DESCENDING)], name="capturer_recent"),
+        # Only ONE enrolment may be in flight per participant. Without this,
+        # two concurrent requests could both clear the dedup gate and race.
+        IndexModel(
+            [("no_bpjs", ASCENDING)],
+            name="uniq_inflight_per_peserta",
+            unique=True,
+            partialFilterExpression={
+                "status": {"$in": ["draft", "pending_dedup", "pending_approval"]}
+            },
+        ),
+    ],
+    "consent": [
+        IndexModel([("peserta_id", ASCENDING), ("purpose", ASCENDING)], name="peserta_purpose"),
+        IndexModel([("revoked_at", ASCENDING)], name="revoked"),
     ],
     "audit_log": [
         IndexModel(
