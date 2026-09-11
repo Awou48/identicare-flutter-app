@@ -1,6 +1,7 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:identicare_mobile/models/step_results.dart';
+import 'package:identicare_mobile/pages/verification/override_request_page.dart';
 import 'package:identicare_mobile/services/face_capture_service.dart';
 import 'package:identicare_mobile/state/verification_flow_controller.dart';
 import 'package:identicare_mobile/widgets/verification/face_camera_overlay.dart';
@@ -93,6 +94,21 @@ class _Step1FaceScanPageState extends State<Step1FaceScanPage>
     }
   }
 
+  Future<void> _openOverride(VerificationFlowController controller) async {
+    final body = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OverrideRequestPage(
+          sessionId: controller.sessionId!,
+          sessionToken: controller.sessionToken!,
+        ),
+      ),
+    );
+    if (body != null && mounted) {
+      controller.applyOverrideResult(body);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<VerificationFlowController>();
@@ -141,18 +157,29 @@ class _Step1FaceScanPageState extends State<Step1FaceScanPage>
             ],
           ),
         ),
-        _Footer(controller: controller, face: face, onScan: _scan),
+        _Footer(
+          controller: controller,
+          face: face,
+          onScan: _scan,
+          onRequestOverride: () => _openOverride(controller),
+        ),
       ],
     );
   }
 }
 
 class _Footer extends StatelessWidget {
-  const _Footer({required this.controller, required this.face, required this.onScan});
+  const _Footer({
+    required this.controller,
+    required this.face,
+    required this.onScan,
+    required this.onRequestOverride,
+  });
 
   final VerificationFlowController controller;
   final FaceStepResult? face;
   final VoidCallback onScan;
+  final VoidCallback onRequestOverride;
 
   @override
   Widget build(BuildContext context) {
@@ -194,13 +221,30 @@ class _Footer extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
-          if (exhausted)
+          if (exhausted) ...[
+            // Sebelumnya ini jalan buntu. Wajah yang tidak bisa dipindai karena
+            // memar atau bengkak berarti pasien ditolak - padahal justru mereka
+            // yang paling butuh layanan. Override petugas adalah jalan sahnya.
             const Text(
-              'Batas percobaan tercapai. Sesi verifikasi ditolak.',
+              'Batas percobaan tercapai.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Color(0xFFD93025), fontWeight: FontWeight.bold),
-            )
-          else
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Jika wajah tidak dapat dipindai karena cedera, keterbatasan '
+              'fisik, atau masalah perangkat, petugas dapat mengajukan '
+              'verifikasi manual.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: controller.isBusy ? null : onRequestOverride,
+              icon: const Icon(Icons.medical_information_outlined),
+              label: const Text('Ajukan Verifikasi Manual (Petugas)'),
+            ),
+          ] else
             FilledButton.icon(
               onPressed: controller.isBusy ? null : onScan,
               icon: controller.isBusy

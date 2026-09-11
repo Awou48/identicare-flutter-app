@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
-import 'package:identicare_mobile/models/api_result.dart';
 import 'package:identicare_mobile/models/review_data.dart';
 import 'package:identicare_mobile/models/step_results.dart';
 import 'package:identicare_mobile/models/verification_session.dart';
@@ -50,6 +49,10 @@ class VerificationFlowController extends ChangeNotifier {
 
   // --- getters --- //
   String? get sessionId => _sessionId;
+
+  /// Dibutuhkan halaman override, yang memanggil endpoint override langsung.
+  /// Tidak pernah ditulis ke log.
+  String? get sessionToken => _sessionToken;
   String? get noBpjs => _noBpjs;
   SessionStep get currentStep => _currentStep;
   int get stepIndex => _currentStep.index0;
@@ -64,10 +67,31 @@ class VerificationFlowController extends ChangeNotifier {
   ReviewData? get reviewData => _reviewData;
   CommitResult? get commitResult => _commitResult;
 
-  Duration? get remaining =>
-      _expiresAt == null ? null : _expiresAt!.difference(DateTime.now().toUtc());
+  Duration? get remaining => _expiresAt?.difference(DateTime.now().toUtc());
 
   bool get isCommitted => _commitResult != null;
+
+  /// Biometrik gagal sampai batas percobaan, jadi override petugas menjadi
+  /// satu-satunya jalan yang sah untuk melanjutkan.
+  bool get canRequestOverride =>
+      hasSession &&
+      !isCommitted &&
+      ((_faceResult?.isExhausted ?? false) ||
+          (_fingerprintResult?.isExhausted ?? false));
+
+  /// Dipanggil setelah supervisor menyetujui override. Hasilnya diperlakukan
+  /// sama seperti commit biasa supaya layar hasil tidak perlu tahu bedanya -
+  /// perbedaannya ada di `decision`, yaitu APPROVED_WITH_OVERRIDE.
+  void applyOverrideResult(Map<String, dynamic> body) {
+    try {
+      _commitResult = CommitResult.fromJson(body);
+      _currentStep = SessionStep.commit;
+      _error = null;
+    } catch (e) {
+      _error = 'Hasil override tidak dapat dibaca: $e';
+    }
+    _notify();
+  }
 
   // ------------------------------------------------------------------ //
   Future<bool> start({
