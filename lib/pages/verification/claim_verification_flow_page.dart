@@ -4,7 +4,6 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:identicare_mobile/config/app_config.dart';
-import 'package:identicare_mobile/models/verification_session.dart';
 import 'package:identicare_mobile/pages/verification/steps/step_1_face_scan_page.dart';
 import 'package:identicare_mobile/pages/verification/steps/step_2_fingerprint_page.dart';
 import 'package:identicare_mobile/pages/verification/steps/step_3_review_data_page.dart';

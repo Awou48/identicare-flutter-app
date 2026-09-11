@@ -32,7 +32,6 @@ class _SymptomCheckerPageState extends State<SymptomCheckerPage> {
   ];
 
   final Set<String> _selectedSymptoms = {};
-  bool _catalogLoaded = false;
 
   @override
   void initState() {
@@ -47,14 +46,12 @@ class _SymptomCheckerPageState extends State<SymptomCheckerPage> {
     result.when(
       ok: (gejala) {
         if (gejala.isNotEmpty) {
-          setState(() {
-            _allSymptoms = gejala;
-            _catalogLoaded = true;
-          });
+          setState(() => _allSymptoms = gejala);
         }
       },
-      // Bukan kegagalan yang perlu ditampilkan: daftar cadangan tetap dipakai.
-      failure: (_) => setState(() => _catalogLoaded = true),
+      // Bukan kegagalan yang perlu ditampilkan: daftar cadangan tetap dipakai,
+      // jadi pengguna tidak terhalang saat server tidak terjangkau.
+      failure: (_) {},
     );
   }
 

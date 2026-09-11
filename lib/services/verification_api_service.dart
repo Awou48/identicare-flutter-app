@@ -1,5 +1,6 @@
 import 'package:identicare_mobile/config/app_config.dart';
 import 'package:identicare_mobile/models/api_result.dart';
+import 'package:identicare_mobile/models/override_request.dart';
 import 'package:identicare_mobile/models/review_data.dart';
 import 'package:identicare_mobile/models/step_results.dart';
 import 'package:identicare_mobile/models/verification_history.dart';
@@ -175,6 +176,88 @@ class VerificationApiService {
 
   Future<ApiResult<Map<String, dynamic>>> analyzeSymptoms(List<String> gejala) {
     return _client.postJson('/symptoms/analyze', body: {'gejala': gejala});
+  }
+
+  // --- Override petugas (break-glass) ------------------------------- //
+
+  /// Login petugas. Token berumur satu shift dan hanya disimpan di memori.
+  Future<ApiResult<StaffSession>> staffLogin({
+    required String nip,
+    required String password,
+  }) async {
+    final result = await _client.postJson(
+      '/staff/login',
+      body: {'nip': nip, 'password': password},
+    );
+    return _map(result, StaffSession.fromJson);
+  }
+
+  /// Ajukan override setelah biometrik gagal. Bukti foto dikirim multipart.
+  Future<ApiResult<Map<String, dynamic>>> requestOverride({
+    required String sessionId,
+    required String sessionToken,
+    required String staffToken,
+    required OverrideReason reason,
+    String note = '',
+    List<int>? evidenceBpjs,
+    List<int>? evidenceKtp,
+  }) {
+    return _client.postMultipart(
+      '/verification/sessions/$sessionId/override/request',
+      sessionToken: sessionToken,
+      staffToken: staffToken,
+      namedFiles: {
+        if (evidenceBpjs != null) 'evidence_bpjs': evidenceBpjs,
+        if (evidenceKtp != null) 'evidence_ktp': evidenceKtp,
+      },
+      fields: {'reason_code': reason.code, 'reason_note': note},
+    );
+  }
+
+  /// Supervisor menyetujui. HARUS petugas yang berbeda dari pengaju - dicek di
+  /// server terhadap data tersimpan, bukan terhadap klaim dari klien.
+  Future<ApiResult<Map<String, dynamic>>> approveOverride({
+    required String sessionId,
+    required String sessionToken,
+    required String supervisorToken,
+    String note = '',
+  }) {
+    return _client.postJson(
+      '/verification/sessions/$sessionId/override/approve',
+      sessionToken: sessionToken,
+      staffToken: supervisorToken,
+      body: {'note': note},
+    );
+  }
+
+  Future<ApiResult<Map<String, dynamic>>> rejectOverride({
+    required String sessionId,
+    required String sessionToken,
+    required String supervisorToken,
+    String note = '',
+  }) {
+    return _client.postJson(
+      '/verification/sessions/$sessionId/override/reject',
+      sessionToken: sessionToken,
+      staffToken: supervisorToken,
+      body: {'note': note},
+    );
+  }
+
+  Future<ApiResult<OverrideRecord>> fetchOverride({
+    required String sessionId,
+    required String sessionToken,
+  }) async {
+    final result = await _client.getJson(
+      '/verification/sessions/$sessionId/override',
+      sessionToken: sessionToken,
+    );
+    return _map(
+      result,
+      (json) => OverrideRecord.fromJson(
+        (json['override'] as Map).cast<String, dynamic>(),
+      ),
+    );
   }
 
   Future<ApiResult<Map<String, dynamic>>> health() => _client.health();

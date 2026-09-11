@@ -23,6 +23,7 @@ class IdenticareApiClient {
 
   Future<Map<String, String>> _headers({
     String? sessionToken,
+    String? staffToken,
     bool json = true,
     bool includeFaskesKey = false,
   }) async {
@@ -33,6 +34,10 @@ class IdenticareApiClient {
     if (token != null) headers['Authorization'] = 'Bearer $token';
 
     if (sessionToken != null) headers['X-Session-Token'] = sessionToken;
+    // Header terpisah dari Authorization: satu permintaan bisa sah membawa
+    // token peserta DAN token petugas sekaligus - pasien hadir di meja sementara
+    // petugas yang bertindak - dan menyatukannya akan membuat itu ambigu.
+    if (staffToken != null) headers['X-Staff-Token'] = staffToken;
     if (includeFaskesKey) headers['X-Api-Key'] = AppConfig.faskesApiKey;
     return headers;
   }
@@ -41,13 +46,16 @@ class IdenticareApiClient {
   Future<ApiResult<Map<String, dynamic>>> getJson(
     String path, {
     String? sessionToken,
+    String? staffToken,
     Map<String, String>? query,
   }) async {
     return _guard(() async {
       final uri = Uri.parse('${AppConfig.apiV1}$path')
           .replace(queryParameters: query?.isEmpty ?? true ? null : query);
       final response = await _http
-          .get(uri, headers: await _headers(sessionToken: sessionToken, json: false))
+          .get(uri,
+              headers: await _headers(
+                  sessionToken: sessionToken, staffToken: staffToken, json: false))
           .timeout(AppConfig.jsonTimeout);
       return _decode(response);
     });
@@ -57,6 +65,7 @@ class IdenticareApiClient {
     String path, {
     Map<String, dynamic>? body,
     String? sessionToken,
+    String? staffToken,
     bool includeFaskesKey = false,
   }) async {
     return _guard(() async {
@@ -65,6 +74,7 @@ class IdenticareApiClient {
             Uri.parse('${AppConfig.apiV1}$path'),
             headers: await _headers(
               sessionToken: sessionToken,
+              staffToken: staffToken,
               includeFaskesKey: includeFaskesKey,
             ),
             body: jsonEncode(body ?? const {}),
@@ -82,16 +92,20 @@ class IdenticareApiClient {
   /// request sebagai string sebelum diurai.
   Future<ApiResult<Map<String, dynamic>>> postMultipart(
     String path, {
-    required List<List<int>> files,
+    List<List<int>> files = const [],
     String fileField = 'frames',
+    /// Berkas dengan nama field masing-masing, mis. evidence_bpjs / evidence_ktp.
+    Map<String, List<int>> namedFiles = const {},
     Map<String, String> fields = const {},
     String? sessionToken,
+    String? staffToken,
     bool includeFaskesKey = false,
   }) async {
     return _guard(() async {
       final request = http.MultipartRequest('POST', Uri.parse('${AppConfig.apiV1}$path'))
         ..headers.addAll(await _headers(
           sessionToken: sessionToken,
+          staffToken: staffToken,
           json: false,
           includeFaskesKey: includeFaskesKey,
         ))
@@ -104,6 +118,13 @@ class IdenticareApiClient {
           filename: 'frame_$i.jpg',
         ));
       }
+      namedFiles.forEach((field, bytes) {
+        request.files.add(http.MultipartFile.fromBytes(
+          field,
+          bytes,
+          filename: '$field.jpg',
+        ));
+      });
 
       final streamed = await request.send().timeout(AppConfig.uploadTimeout);
       return _decode(await http.Response.fromStream(streamed));
