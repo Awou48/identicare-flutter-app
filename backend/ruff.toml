@@ -22,3 +22,10 @@ extend-immutable-calls = [
     "fastapi.Body",
     "fastapi.Path",
 ]
+
+[lint.per-file-ignores]
+# seed_articles.py berisi prosa artikel, bukan kode. Baris panjang di sana
+# adalah PARAGRAF: memotongnya akan mengubah teks yang dirender, karena
+# pemisah paragrafnya justru baris kosong. Batas panjang baris ditujukan untuk
+# keterbacaan kode, dan tidak berlaku untuk konten.
+"scripts/seed_articles.py" = ["E501"]

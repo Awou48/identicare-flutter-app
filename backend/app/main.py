@@ -17,12 +17,14 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app import db as database
 from app.config import get_settings
 from app.routers import (
+    articles,
     enrollment,
     face,
     fingerprint,
     fraud,
     health,
     override,
+    peserta,
     sessions,
     staff,
     symptoms,
@@ -194,6 +196,8 @@ app.include_router(override.router, prefix=API_PREFIX)
 app.include_router(staff.router, prefix=API_PREFIX)
 app.include_router(history_router.router, prefix=API_PREFIX)
 app.include_router(fraud.router, prefix=API_PREFIX)
+app.include_router(articles.router, prefix=API_PREFIX)
+app.include_router(peserta.router, prefix=API_PREFIX)
 # symptoms carries its own paths: the legacy /analyze_symptoms at the root plus
 # the versioned alias, so the existing Flutter client keeps working unchanged.
 app.include_router(symptoms.router)
