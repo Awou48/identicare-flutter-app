@@ -121,7 +121,7 @@ class _AppointmentPageState extends State<AppointmentPage> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        Icon(Icons.star, color: Colors.amber, size: 18),
+                        const Icon(Icons.star, color: Colors.amber, size: 18),
                         const SizedBox(width: 4),
                         Text(doctor['rating']!.toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
                       ],

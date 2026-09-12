@@ -10,7 +10,7 @@ class StepProgressIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final steps = SessionStep.values;
+    const steps = SessionStep.values;
     final activeIndex = currentStep.index0;
 
     return Container(

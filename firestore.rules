@@ -108,6 +108,35 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // --- konsultasi_chat/{threadId}/messages --------------------------- //
+    // Percakapan konsultasi. threadId berbentuk "{uid}_{slug-dokter}", tetapi
+    // kepemilikan TIDAK boleh disimpulkan dari nama dokumen - siapa pun bisa
+    // mengarang threadId berisi uid orang lain. Yang menentukan adalah field
+    // userId di dalam dokumen pesannya.
+    match /konsultasi_chat/{threadId} {
+      // Dokumen induk hanya wadah; isinya ada di subkoleksi.
+      allow read: if isSignedIn();
+      allow write: if false;
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+        allow create: if isSignedIn()
+                      && request.resource.data.userId == request.auth.uid
+                      && request.resource.data.text is string
+                      && request.resource.data.text.size() > 0
+                      && request.resource.data.text.size() <= 4000
+                      && request.resource.data.sender in ['user', 'bot']
+                      && request.resource.data.keys().hasOnly(
+                           ['userId', 'text', 'sender', 'timestamp']
+                         );
+
+        // Append-only, sama seperti riwayat konsultasi: pesan yang sudah
+        // terkirim tidak boleh diubah belakangan.
+        allow update, delete: if false;
+      }
+    }
+
     // --- default ------------------------------------------------------ //
     // Semua koleksi lain ditolak. Kalau nanti ada koleksi baru, ia harus
     // ditambahkan di sini secara sadar, bukan ikut terbuka begitu saja.

@@ -32,7 +32,7 @@ class TelemedicinePage extends StatelessWidget {
             style: TextStyle(color: Colors.grey.shade700, fontSize: 16),
           ),
           const SizedBox(height: 20),
-          ...doctors.map((doctor) => _buildTelemedicineDoctorCard(context, doctor)).toList(),
+          ...doctors.map((doctor) => _buildTelemedicineDoctorCard(context, doctor)),
         ],
       ),
     );
@@ -104,7 +104,10 @@ class TelemedicinePage extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: isOnline ? () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => ChatPage(doctorName: doctor['name']!)));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => ChatPage(doctor: doctor)),
+                  );
                 } : null,
                 icon: const Icon(Icons.chat_bubble_outline),
                 label: const Text('Mulai Chat'),

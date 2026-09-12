@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:identicare_mobile/widgets/common/app_components.dart';
 import 'package:identicare_mobile/services/auth_service.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -24,7 +25,23 @@ class ProfilePage extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return const Center(child: Text('Terjadi kesalahan.'));
+            // "Terjadi kesalahan." tanpa detail tidak memberi apa pun untuk
+            // ditindaklanjuti. Penyebab paling sering adalah aturan keamanan
+            // Firestore menolak pembacaan, dan itu hanya terlihat kalau
+            // pesan aslinya ditampilkan.
+            final error = snapshot.error.toString();
+            final denied = error.contains('permission-denied') ||
+                error.contains('PERMISSION_DENIED');
+            return AppEmptyState(
+              icon: denied ? Icons.lock_outline_rounded : Icons.error_outline_rounded,
+              title: denied ? 'Akses profil ditolak' : 'Tidak dapat memuat profil',
+              message: denied
+                  ? 'Aturan keamanan Firestore menolak pembacaan dokumen ini. '
+                      'Terapkan firestore.rules dengan: '
+                      'firebase deploy --only firestore:rules'
+                  : 'Terjadi kesalahan saat membaca data profil dari Firestore.',
+              detail: error,
+            );
           }
           if (!snapshot.hasData || !snapshot.data!.exists) {
             return const Center(
