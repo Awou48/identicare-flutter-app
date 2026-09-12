@@ -1,5 +1,6 @@
 import 'package:identicare_mobile/config/app_config.dart';
 import 'package:identicare_mobile/models/api_result.dart';
+import 'package:identicare_mobile/models/article.dart';
 import 'package:identicare_mobile/models/override_request.dart';
 import 'package:identicare_mobile/models/review_data.dart';
 import 'package:identicare_mobile/models/step_results.dart';
@@ -258,6 +259,48 @@ class VerificationApiService {
         (json['override'] as Map).cast<String, dynamic>(),
       ),
     );
+  }
+
+  // ---------------------- Artikel & status peserta -------------------- //
+
+  /// Daftar artikel. Publik - tidak memerlukan token.
+  Future<ApiResult<ArticlePage>> fetchArticles({
+    int limit = 20,
+    int skip = 0,
+    String? kategori,
+    bool featuredOnly = false,
+    String? query,
+  }) async {
+    final result = await _client.getJson('/articles', query: {
+      'limit': '$limit',
+      'skip': '$skip',
+      if (kategori != null) 'kategori': kategori,
+      if (featuredOnly) 'featured_only': 'true',
+      if (query != null && query.isNotEmpty) 'q': query,
+    });
+    return _map(result, ArticlePage.fromJson);
+  }
+
+  Future<ApiResult<Article>> fetchArticle(String slug) async {
+    final result = await _client.getJson('/articles/$slug');
+    return _map(
+      result,
+      (json) => Article.fromJson((json['article'] as Map).cast<String, dynamic>()),
+    );
+  }
+
+  Future<ApiResult<List<String>>> fetchArticleCategories() async {
+    final result = await _client.getJson('/articles/categories');
+    return _map(result, (json) => ((json['kategori'] as List?) ?? const []).cast<String>());
+  }
+
+  /// Status peserta milik pengguna yang login.
+  ///
+  /// Tidak menerima no_bpjs: server menentukan pesertanya dari firebase_uid
+  /// pada token, sehingga tidak ada cara menanyakan status orang lain.
+  Future<ApiResult<PesertaStatus>> pesertaMe() async {
+    final result = await _client.getJson('/peserta/me');
+    return _map(result, PesertaStatus.fromJson);
   }
 
   Future<ApiResult<Map<String, dynamic>>> health() => _client.health();
