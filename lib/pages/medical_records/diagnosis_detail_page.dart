@@ -7,7 +7,7 @@ class DiagnosisDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Detail Catatan Diagnosa')),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Card(
           elevation: 2,
@@ -38,13 +38,22 @@ class DiagnosisDetailPage extends StatelessWidget {
       children: [
         Icon(Icons.assignment_ind_outlined, size: 40, color: Theme.of(context).colorScheme.primary),
         const SizedBox(width: 16),
-        const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Konsultasi dengan Dr. Budi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            SizedBox(height: 4),
-            Text('Tanggal: 28 Juni 2025', style: TextStyle(color: Colors.grey)),
-          ],
+        // Expanded, bukan Column telanjang. Tanpa ini Column mengambil lebar
+        // intrinsiknya dan judul 18px bold meluap 22 piksel ke kanan pada layar
+        // sempit - persis garis kuning-hitam yang terlihat.
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Konsultasi dengan Dr. Budi',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 4),
+              Text('Tanggal: 28 Juni 2025', style: TextStyle(color: Colors.grey)),
+            ],
+          ),
         )
       ],
     );
