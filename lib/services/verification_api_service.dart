@@ -303,6 +303,17 @@ class VerificationApiService {
     return _map(result, PesertaStatus.fromJson);
   }
 
+  /// Pendaftaran biometrik mandiri oleh peserta dari ponselnya sendiri.
+  ///
+  /// Diautentikasi dengan token Firebase peserta, bukan kunci operator - kunci
+  /// operator tidak boleh ada di dalam aplikasi pasien, karena siapa pun yang
+  /// memilikinya bisa mendaftarkan wajah apa pun ke nomor BPJS siapa pun.
+  /// Server menentukan pesertanya dari firebase_uid, jadi nomor BPJS tidak
+  /// dikirim dari sini.
+  Future<ApiResult<Map<String, dynamic>>> enrollSelf(List<List<int>> frames) {
+    return _client.postMultipart('/enrollment/self', files: frames);
+  }
+
   Future<ApiResult<Map<String, dynamic>>> health() => _client.health();
 
   // ------------------------------------------------------------------ //

@@ -18,7 +18,7 @@ from fastapi import APIRouter, File, Form, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from app import db as database
-from app.deps import DbDep, OperatorDep, RequestIdDep, SettingsDep
+from app.deps import CurrentUserDep, DbDep, OperatorDep, RequestIdDep, SettingsDep
 from app.schemas.common import OkResponse
 from app.schemas.peserta import PesertaCreate, PesertaCreated
 from app.security import crypto, rotation
@@ -108,26 +108,99 @@ async def enroll_face(
     replace: bool = Form(False),
     assurance: str = Form(enrollment_service.ASSURANCE_SELF),
 ) -> dict:
-    """Enrol a face from a 3-frame burst.
+    """Operator-driven enrolment from a 3-frame burst."""
+    peserta = await db.peserta.find_one({"no_bpjs": no_bpjs})
+    if not peserta:
+        raise ApiError("PESERTA_NOT_FOUND", 404)
 
-    All frames are embedded (unlike verification, which embeds only the best one)
-    and checked for mutual agreement before the normalised mean is stored. That
-    check is what stops an operator accidentally enrolling two different people
-    into one record.
+    payloads = [await f.read() for f in frames] if frames else []
+    return await _run_enrollment(
+        db,
+        settings,
+        peserta=peserta,
+        payloads=payloads,
+        assurance=assurance,
+        replace=replace,
+        actor="operator",
+        request_id=request_id,
+    )
 
-    SINCE v2: no template is activated until the face has been swept 1:N against
-    every active template. Before that gate existed, an insider could enrol their
-    own face against someone else's BPJS number and every later verification
-    would then succeed CORRECTLY - the fraud becomes permanently invisible,
-    because the biometric genuinely matches what is on file.
+
+@router.post("/self")
+async def enroll_self(
+    db: DbDep,
+    settings: SettingsDep,
+    request_id: RequestIdDep,
+    user: CurrentUserDep,
+    frames: list[UploadFile] = File(...),
+) -> dict:
+    """Self-service enrolment by the participant, from their own phone.
+
+    Why this exists: the claim flow refuses to start with BIOMETRIC_NOT_ENROLLED,
+    and until now the app had no way to resolve that - the headline feature
+    simply dead-ended for anyone an operator had not enrolled first.
+
+    Three deliberate differences from the operator path.
+
+    1. Authenticated by the participant's own Firebase token, NOT the operator
+       key. Shipping the operator key inside the patient app would hand every
+       user the ability to enrol any face against any BPJS number, which is the
+       exact hole the dedup gate exists to close.
+    2. The participant is resolved from firebase_uid, never from a body field.
+       Accepting a no_bpjs here would let anyone enrol their face against
+       someone else's number just by typing it.
+    3. replace is not offered. Re-enrolling over an existing template is how you
+       would quietly take over an account that already verifies, so a genuine
+       re-enrolment has to go through an operator with dual control.
+
+    The result is recorded as SELF_ASSERTED, which carries a claim ceiling - a
+    weaker assertion than an officer checking a KTP, and the record says so.
+    """
+    peserta = await db.peserta.find_one({"firebase_uid": user.uid})
+    if not peserta:
+        raise ApiError(
+            "PESERTA_NOT_FOUND",
+            404,
+            message="Akun ini belum tertaut dengan data peserta BPJS. "
+            "Lengkapi nomor BPJS Anda terlebih dahulu.",
+        )
+
+    payloads = [await f.read() for f in frames] if frames else []
+    result = await _run_enrollment(
+        db,
+        settings,
+        peserta=peserta,
+        payloads=payloads,
+        assurance=enrollment_service.ASSURANCE_SELF,
+        replace=False,
+        actor=user.uid,
+        request_id=request_id,
+    )
+    result["claim_ceiling"] = enrollment_service.ceiling_for(
+        enrollment_service.ASSURANCE_SELF
+    )
+    return result
+
+
+async def _run_enrollment(
+    db,
+    settings,
+    *,
+    peserta: dict,
+    payloads: list[bytes],
+    assurance: str,
+    replace: bool,
+    actor: str,
+    request_id: str,
+) -> dict:
+    """Embed, check consistency, run the dedup gate, then activate the template.
+
+    Shared by both enrolment paths on purpose: the security-critical steps - the
+    1:N gate above all - must be impossible to reach by a route that skips them.
     """
     engine = face_engine.get_engine()
     if engine is None:
         raise ApiError("MODEL_UNAVAILABLE", 503, details={"reason": face_engine.load_error()})
-
-    peserta = await db.peserta.find_one({"no_bpjs": no_bpjs})
-    if not peserta:
-        raise ApiError("PESERTA_NOT_FOUND", 404)
 
     active = await db.biometric_templates.find_one(
         {"peserta_id": peserta["_id"], "modality": "face", "status": "active"}
@@ -135,12 +208,10 @@ async def enroll_face(
     if active and not replace:
         raise ApiError("ALREADY_ENROLLED", 409, details={"template_id": str(active["_id"])})
 
-    if not frames:
+    if not payloads:
         raise ApiError("NO_FRAMES", 400)
 
-    payloads = [await f.read() for f in frames]
     embeddings, qualities = await run_in_threadpool(_embed_all, engine, payloads)
-
     if not embeddings:
         raise ApiError("NO_FACE_DETECTED", 400, details={"frames": len(payloads)})
 
@@ -155,7 +226,10 @@ async def enroll_face(
             raise ApiError(
                 "ENROLL_FRAMES_INCONSISTENT",
                 400,
-                details={"min_pairwise_cosine": round(worst, 4), "required": ENROLL_CONSISTENCY_MIN},
+                details={
+                    "min_pairwise_cosine": round(worst, 4),
+                    "required": ENROLL_CONSISTENCY_MIN,
+                },
             )
 
     mean = enrollment_service.normalized_mean(embeddings)
@@ -166,7 +240,7 @@ async def enroll_face(
     rot = database.get_rotation()
     request = await enrollment_service.create_request(
         db,
-        no_bpjs=no_bpjs,
+        no_bpjs=peserta["no_bpjs"],
         assurance=assurance,
         staff=None,
         faskes_id=(peserta.get("faskes_tingkat1") or {}).get("faskes_id"),
@@ -181,7 +255,7 @@ async def enroll_face(
     )
     if not dedup.passed:
         await enrollment_service.raise_duplicate_signal(
-            db, request_id=request["_id"], no_bpjs=no_bpjs, outcome=dedup
+            db, request_id=request["_id"], no_bpjs=peserta["no_bpjs"], outcome=dedup
         )
         crypto.wipe(mean)
         raise ApiError(
@@ -238,6 +312,7 @@ async def enroll_face(
                     "frames_used": len(embeddings),
                     "frames_submitted": len(payloads),
                     "request_id": request_id,
+                    "actor": actor,
                 },
                 "assurance": assurance,
                 "enrollment_request_id": request["_id"],
@@ -259,7 +334,7 @@ async def enroll_face(
     )
     await audit.record(
         db,
-        who="operator",
+        who=actor,
         what="enroll_face",
         peserta_id=peserta["_id"],
         purpose="pendaftaran_biometrik",

@@ -35,6 +35,7 @@ class VerificationFlowController extends ChangeNotifier {
   // --- state UI --- //
   bool _busy = false;
   String? _error;
+  String? _errorCode;
   bool _disposed = false;
 
   LivenessChallenge? _challenge;
@@ -59,6 +60,19 @@ class VerificationFlowController extends ChangeNotifier {
   PesertaPreview? get preview => _preview;
   bool get isBusy => _busy;
   String? get error => _error;
+
+  /// Kode mesin dari server, mis. BIOMETRIC_NOT_ENROLLED. Pesannya untuk dibaca
+  /// pengguna; kodenya untuk diputuskan aplikasi. Tanpa ini layar kegagalan
+  /// hanya bisa menampilkan teks dan menawarkan "Coba Lagi", yang tidak
+  /// menolong sama sekali kalau masalahnya adalah belum mendaftar biometrik.
+  String? get errorCode => _errorCode;
+
+  /// Belum punya template wajah, jadi alur klaim memang tidak bisa dimulai -
+  /// tetapi itu dapat diselesaikan sendiri lewat pendaftaran mandiri.
+  bool get needsEnrollment => _errorCode == 'BIOMETRIC_NOT_ENROLLED';
+
+  /// Akun Firebase ini belum tertaut ke nomor BPJS mana pun.
+  bool get needsBpjsLink => _errorCode == 'PESERTA_NOT_FOUND';
   bool get hasSession => _sessionId != null && _sessionToken != null;
 
   LivenessChallenge? get challenge => _challenge;
@@ -127,7 +141,7 @@ class VerificationFlowController extends ChangeNotifier {
         return true;
       },
       failure: (f) {
-        _fail(f.message);
+        _fail(f.message, f.errorCode);
         return false;
       },
     );
@@ -181,7 +195,7 @@ class VerificationFlowController extends ChangeNotifier {
         return face.passed;
       },
       failure: (f) {
-        _fail(f.message);
+        _fail(f.message, f.errorCode);
         return false;
       },
     );
@@ -232,7 +246,7 @@ class VerificationFlowController extends ChangeNotifier {
         return fp.passed;
       },
       failure: (f) {
-        _fail(f.message);
+        _fail(f.message, f.errorCode);
         return false;
       },
     );
@@ -250,7 +264,7 @@ class VerificationFlowController extends ChangeNotifier {
         return true;
       },
       failure: (f) {
-        _fail(f.message);
+        _fail(f.message, f.errorCode);
         return false;
       },
     );
@@ -271,7 +285,7 @@ class VerificationFlowController extends ChangeNotifier {
         return true;
       },
       failure: (f) {
-        _fail(f.message);
+        _fail(f.message, f.errorCode);
         return false;
       },
     );
@@ -293,7 +307,7 @@ class VerificationFlowController extends ChangeNotifier {
         return true;
       },
       failure: (f) {
-        _fail(f.message);
+        _fail(f.message, f.errorCode);
         return false;
       },
     );
@@ -311,6 +325,7 @@ class VerificationFlowController extends ChangeNotifier {
 
   void clearError() {
     _error = null;
+    _errorCode = null;
     _notify();
   }
 
@@ -320,8 +335,9 @@ class VerificationFlowController extends ChangeNotifier {
     _notify();
   }
 
-  void _fail(String message) {
+  void _fail(String message, [String? code]) {
     _error = message;
+    _errorCode = code;
     _busy = false;
     _notify();
   }

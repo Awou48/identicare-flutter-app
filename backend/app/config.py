@@ -62,6 +62,9 @@ class Settings(BaseSettings):
 
     # --- Auth ---
     firebase_credentials: Path = BACKEND_ROOT / "keys" / "firebase-adminsdk.json"
+    # Project id from lib/firebase_options.dart. This alone is enough to verify
+    # ID tokens against Google's public keys - no service account required.
+    firebase_project_id: str = "identicare-591e3"
     facility_api_keys: str = ""
     operator_api_key: str = "dev-operator-key"
 

@@ -41,6 +41,7 @@ class _ChatPageState extends State<ChatPage> {
   Timer? _typingTimer;
 
   String get _doctorName => '${widget.doctor['name']}';
+  String get _uid => context.read<AuthService>().currentUser?.uid ?? 'anon';
   String get _threadId {
     final uid = context.read<AuthService>().currentUser?.uid ?? 'anon';
     final slug = _doctorName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
@@ -229,7 +230,16 @@ class _ChatPageState extends State<ChatPage> {
 
   Widget _messageList() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _messages.orderBy('timestamp', descending: false).snapshots(),
+      // where(userId) is REQUIRED, not redundant. The security rule allows a
+      // read only when resource.data.userId == request.auth.uid, and Firestore
+      // evaluates a list query against the QUERY, not the returned documents:
+      // if it cannot prove every possible result satisfies the rule it rejects
+      // the whole thing with permission-denied. Ordering by timestamp alone
+      // carries no such proof, which is exactly why the chat failed to load.
+      stream: _messages
+          .where('userId', isEqualTo: _uid)
+          .orderBy('timestamp', descending: false)
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return AppEmptyState(
