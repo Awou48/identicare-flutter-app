@@ -35,7 +35,7 @@ async def health(settings: SettingsDep) -> dict:
         checks["face_models"] = "unavailable"
         checks["face_models_error"] = face_engine.load_error()
 
-    checks["firebase_auth"] = "enabled" if firebase_auth.is_available() else "dev-bypass"
+    checks["firebase_auth"] = firebase_auth.status()
     checks["keys_loaded"] = database.is_connected()
     checks["thresholds"] = {
         "face_accept": settings.face_match_accept,

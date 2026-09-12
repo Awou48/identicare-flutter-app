@@ -183,7 +183,25 @@ ThemeData buildAppTheme() {
       selectedColor: AppColors.brandSoft,
       side: const BorderSide(color: AppColors.ink300),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.pill)),
-      labelStyle: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500),
+      // Warna WAJIB disebut di sini. Tanpa itu chip kehilangan resolusi warna
+      // bawaan Material dan labelnya dirender putih - di atas latar putih dan
+      // hijau muda hasilnya tidak terbaca sama sekali, yang persis terjadi pada
+      // filter riwayat verifikasi.
+      labelStyle: GoogleFonts.poppins(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: AppColors.ink700,
+      ),
+      // ChoiceChip adalah chip "secondary": saat terpilih ia memakai gaya ini,
+      // bukan labelStyle.
+      secondaryLabelStyle: GoogleFonts.poppins(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: AppColors.brandDark,
+      ),
+      secondarySelectedColor: AppColors.brandSoft,
+      checkmarkColor: AppColors.brandDark,
+      showCheckmark: true,
     ),
     bottomNavigationBarTheme: BottomNavigationBarThemeData(
       backgroundColor: AppColors.white,

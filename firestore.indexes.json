@@ -5,8 +5,29 @@
       "collectionGroup": "riwayat_konsultasi",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "_comment": "chat_page.dart queries messages with where(userId) + orderBy(timestamp). The userId filter is required by the security rule, and an equality filter combined with an order-by on a different field needs a composite index. COLLECTION_GROUP scope because messages is a subcollection under konsultasi_chat/{threadId}.",
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],

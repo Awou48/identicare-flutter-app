@@ -4,26 +4,64 @@ The hybrid-database decision means Firebase Auth stays the identity provider and
 MongoDB holds everything else. This module is the seam: it turns an ID token into
 a firebase_uid, which `peserta.firebase_uid` links to a BPJS participant.
 
-Dev fallback: when no service-account JSON is configured AND the environment is
-"dev", a token of the form "dev:<uid>" is accepted so the API can be driven from
-Swagger without Firebase credentials. It is refused outright in any other
-environment, and every use is logged loudly - an auth bypass that can silently
-follow you to production is far worse than the inconvenience it saves.
+THREE VERIFICATION PATHS, tried in this order.
+
+1. Firebase Admin SDK, when a service-account JSON is present. Most
+   authoritative and the only one that can also check whether a user has been
+   disabled or their tokens revoked.
+
+2. Google public keys - no credentials of any kind required. A Firebase ID token
+   is an ordinary RS256 JWT signed by Google, so verifying it needs only the
+   PUBLIC certificates at the well-known endpoint below plus the project id. The
+   service account is only needed for PRIVILEGED operations (minting custom
+   tokens, editing users) - never for checking a token somebody handed you.
+
+   This distinction matters practically: without it the server rejected every
+   real request from the app with "Verifikasi Firebase tidak tersedia di
+   server", and the only apparent fix was to download a private key and put it
+   on disk. That is a credential the deployment does not need and should not
+   hold.
+
+3. Dev bypass: "Bearer dev:<uid>", only when IDENTICARE_ENV=dev AND neither of
+   the above is configured. Refused outright otherwise, and logged loudly - an
+   auth bypass that can silently follow you into production is far worse than
+   the inconvenience it saves.
 """
 
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
+
+import httpx
+import jwt
+from cryptography.x509 import load_pem_x509_certificate
 
 from app.config import Settings
 from app.utils.errors import ApiError
 
 log = logging.getLogger(__name__)
 
+# Google's public certificates for Firebase ID tokens. Public data; no auth.
+GOOGLE_CERTS_URL = (
+    "https://www.googleapis.com/robot/v1/metadata/x509/"
+    "securetoken@system.gserviceaccount.com"
+)
+
+# Tolerance for clock drift between this machine and Google's issuer.
+LEEWAY_SECONDS = 60
+
 _initialised = False
-_available = False
+_admin_available = False
+_public_key_available = False
+
+# kid -> public key, with the expiry Google's Cache-Control gives us.
+_cert_cache: dict[str, object] = {}
+_cert_expiry: float = 0.0
+_cert_lock = threading.Lock()
 
 
 @dataclass
@@ -32,12 +70,16 @@ class CurrentUser:
     email: str | None = None
     dev_mode: bool = False
 
+    # How this token was checked. Surfaced by /health so it is obvious which
+    # path is live rather than having to infer it from behaviour.
+    method: str = "unknown"
+
 
 def init(settings: Settings) -> bool:
-    """Initialise firebase-admin if a credentials file is present."""
-    global _initialised, _available
+    """Decide which verification paths are available. Never raises."""
+    global _initialised, _admin_available, _public_key_available
     if _initialised:
-        return _available
+        return _admin_available or _public_key_available
     _initialised = True
 
     cred_path = Path(settings.firebase_credentials)
@@ -46,41 +88,171 @@ def init(settings: Settings) -> bool:
 
         cred_path = BACKEND_ROOT / cred_path
 
-    if not cred_path.exists():
-        if settings.identicare_env == "dev":
-            log.warning(
-                "Firebase credentials not found at %s. DEV MODE: accepting "
-                "'Authorization: Bearer dev:<uid>' tokens. Never deploy like this.",
-                cred_path,
+    if cred_path.exists():
+        try:
+            import firebase_admin
+            from firebase_admin import credentials
+
+            if not firebase_admin._apps:
+                firebase_admin.initialize_app(credentials.Certificate(str(cred_path)))
+            _admin_available = True
+            log.info("Firebase Admin initialised from %s", cred_path)
+        except Exception:
+            log.exception("Failed to initialise Firebase Admin; falling back to public keys")
+
+    if settings.firebase_project_id:
+        _public_key_available = True
+        if not _admin_available:
+            log.info(
+                "Verifying Firebase ID tokens against Google public keys for project %s "
+                "(no service account needed).",
+                settings.firebase_project_id,
             )
-        else:
-            log.error("Firebase credentials missing at %s - all auth will fail.", cred_path)
-        _available = False
-        return False
+    else:
+        log.error(
+            "FIREBASE_PROJECT_ID is not set, so ID tokens cannot be verified. "
+            "Set it to the project id from lib/firebase_options.dart."
+        )
 
-    try:
-        import firebase_admin
-        from firebase_admin import credentials
+    if not (_admin_available or _public_key_available) and settings.identicare_env == "dev":
+        log.warning(
+            "No Firebase verification available. DEV MODE: accepting "
+            "'Authorization: Bearer dev:<uid>'. Never deploy like this."
+        )
 
-        if not firebase_admin._apps:
-            firebase_admin.initialize_app(credentials.Certificate(str(cred_path)))
-        _available = True
-        log.info("Firebase Admin initialised from %s", cred_path)
-    except Exception:
-        log.exception("Failed to initialise Firebase Admin")
-        _available = False
-    return _available
+    return _admin_available or _public_key_available
 
 
 def is_available() -> bool:
-    return _available
+    return _admin_available or _public_key_available
 
 
+def status() -> str:
+    """Human-readable mode, for /health."""
+    if _admin_available:
+        return "admin-sdk"
+    if _public_key_available:
+        return "google-public-keys"
+    return "dev-bypass"
+
+
+# --------------------------------------------------------------------------- #
+# Public-key path
+# --------------------------------------------------------------------------- #
+def _fetch_certs() -> dict[str, object]:
+    """Google's signing certificates, cached until Cache-Control says otherwise.
+
+    Refetching on every request would add a round trip to Google to each API
+    call and would rate-limit under load; the keys rotate roughly daily.
+    """
+    global _cert_expiry
+
+    with _cert_lock:
+        if _cert_cache and time.time() < _cert_expiry:
+            return _cert_cache
+
+        try:
+            response = httpx.get(GOOGLE_CERTS_URL, timeout=10.0)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            # Keep serving from a stale cache rather than locking every user out
+            # because Google was briefly unreachable.
+            if _cert_cache:
+                log.warning("Could not refresh Google certs (%s); using cached keys", exc)
+                return _cert_cache
+            raise ApiError(
+                "UNAUTHENTICATED",
+                503,
+                message="Tidak dapat memverifikasi token: kunci publik Google tidak terjangkau.",
+            ) from exc
+
+        certs: dict[str, object] = {}
+        for kid, pem in response.json().items():
+            try:
+                certs[kid] = load_pem_x509_certificate(pem.encode()).public_key()
+            except Exception:  # noqa: BLE001
+                log.warning("Skipping unparseable certificate %s", kid)
+
+        max_age = 3600
+        cache_control = response.headers.get("cache-control", "")
+        for part in cache_control.split(","):
+            part = part.strip()
+            if part.startswith("max-age="):
+                try:
+                    max_age = int(part.split("=", 1)[1])
+                except ValueError:
+                    pass
+
+        _cert_cache.clear()
+        _cert_cache.update(certs)
+        _cert_expiry = time.time() + max_age
+        log.info("Loaded %d Google signing keys (valid %ds)", len(certs), max_age)
+        return _cert_cache
+
+
+def _verify_with_public_keys(token: str, project_id: str) -> CurrentUser:
+    try:
+        header = jwt.get_unverified_header(token)
+    except jwt.PyJWTError as exc:
+        raise ApiError("UNAUTHENTICATED", 401, message="Token tidak berbentuk JWT yang valid.") from exc
+
+    kid = header.get("kid")
+    if not kid:
+        raise ApiError("UNAUTHENTICATED", 401, message="Token tidak memiliki key id.")
+
+    certs = _fetch_certs()
+    key = certs.get(kid)
+    if key is None:
+        # Google rotated keys since our last fetch: force one refresh before
+        # rejecting, otherwise every user fails for up to an hour after rotation.
+        global _cert_expiry
+        _cert_expiry = 0.0
+        key = _fetch_certs().get(kid)
+    if key is None:
+        raise ApiError("UNAUTHENTICATED", 401, message="Kunci penandatangan token tidak dikenal.")
+
+    try:
+        claims = jwt.decode(
+            token,
+            key=key,
+            algorithms=["RS256"],
+            audience=project_id,
+            issuer=f"https://securetoken.google.com/{project_id}",
+            leeway=LEEWAY_SECONDS,
+            options={"require": ["exp", "iat", "aud", "iss", "sub"]},
+        )
+    except jwt.ExpiredSignatureError as exc:
+        raise ApiError(
+            "UNAUTHENTICATED", 401, message="Sesi Anda telah berakhir. Silakan login ulang."
+        ) from exc
+    except jwt.InvalidAudienceError as exc:
+        raise ApiError(
+            "UNAUTHENTICATED",
+            401,
+            message="Token diterbitkan untuk project Firebase yang berbeda.",
+        ) from exc
+    except jwt.PyJWTError as exc:
+        raise ApiError("UNAUTHENTICATED", 401, message="Token Firebase tidak valid.") from exc
+
+    uid = claims.get("sub") or ""
+    if not uid:
+        raise ApiError("UNAUTHENTICATED", 401, message="Token tidak memuat identitas pengguna.")
+
+    # auth_time is when the user actually authenticated. A token claiming a
+    # future authentication is malformed.
+    auth_time = claims.get("auth_time")
+    if auth_time and auth_time > time.time() + LEEWAY_SECONDS:
+        raise ApiError("UNAUTHENTICATED", 401, message="Token Firebase tidak valid.")
+
+    return CurrentUser(uid=uid, email=claims.get("email"), method="google-public-keys")
+
+
+# --------------------------------------------------------------------------- #
 def verify(token: str, settings: Settings) -> CurrentUser:
     if not token:
         raise ApiError("UNAUTHENTICATED", 401)
 
-    if _available:
+    if _admin_available:
         from firebase_admin import auth as fb_auth
 
         try:
@@ -89,17 +261,31 @@ def verify(token: str, settings: Settings) -> CurrentUser:
             raise ApiError(
                 "UNAUTHENTICATED", 401, message="Token Firebase tidak valid atau kedaluwarsa."
             ) from exc
-        return CurrentUser(uid=decoded["uid"], email=decoded.get("email"))
+        return CurrentUser(
+            uid=decoded["uid"], email=decoded.get("email"), method="admin-sdk"
+        )
+
+    if _public_key_available:
+        return _verify_with_public_keys(token, settings.firebase_project_id)
 
     if settings.identicare_env == "dev" and token.startswith("dev:"):
         uid = token.split(":", 1)[1].strip()
         if not uid:
             raise ApiError("UNAUTHENTICATED", 401)
         log.warning("DEV MODE auth bypass used for uid=%s", uid)
-        return CurrentUser(uid=uid, email=f"{uid}@dev.local", dev_mode=True)
+        return CurrentUser(uid=uid, email=f"{uid}@dev.local", dev_mode=True, method="dev-bypass")
 
     raise ApiError(
         "UNAUTHENTICATED",
         401,
         message="Verifikasi Firebase tidak tersedia di server.",
     )
+
+
+def reset_for_tests() -> None:
+    global _initialised, _admin_available, _public_key_available, _cert_expiry
+    _initialised = False
+    _admin_available = False
+    _public_key_available = False
+    _cert_expiry = 0.0
+    _cert_cache.clear()

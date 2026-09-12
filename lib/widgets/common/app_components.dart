@@ -77,6 +77,28 @@ class AppGridTile extends StatelessWidget {
   final String? badge;
   final bool enabled;
 
+  static const double _iconBox = 42;
+  static const double _labelFontSize = 14;
+  static const double _labelLineHeight = 1.3;
+  static const int _labelLines = 2;
+
+  /// Tinggi kotak label, mengikuti skala teks sistem.
+  static double _labelHeight(BuildContext context) =>
+      MediaQuery.textScalerOf(context).scale(_labelFontSize) *
+      _labelLineHeight *
+      _labelLines;
+
+  /// Tinggi sel yang dibutuhkan isi kartu ini.
+  ///
+  /// Dipakai sebagai `mainAxisExtent` grid, BUKAN `childAspectRatio`. Aspect
+  /// ratio menurunkan tinggi dari lebar, sehingga tingginya berubah mengikuti
+  /// lebar layar sementara isinya tidak - di layar sempit hasilnya kurang 12 px
+  /// dan sel meluap. Tingginya memang tetap, jadi seharusnya dinyatakan
+  /// langsung. Ini juga ikut membesar ketika pengguna memperbesar ukuran font
+  /// perangkat, yang penting untuk peserta BPJS lanjut usia.
+  static double extentFor(BuildContext context) =>
+      AppSpacing.lg * 2 + _iconBox + AppSpacing.md + _labelHeight(context);
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -99,8 +121,8 @@ class AppGridTile extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      width: 42,
-                      height: 42,
+                      width: _iconBox,
+                      height: _iconBox,
                       decoration: BoxDecoration(
                         color: enabled ? AppColors.brandSoft : AppColors.ink100,
                         borderRadius: AppRadius.smAll,
@@ -123,16 +145,18 @@ class AppGridTile extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.md),
                 // Dua baris tetap: dengan tinggi teks yang sama, semua sel
-                // sejajar apa pun panjang labelnya.
+                // sejajar apa pun panjang labelnya. Tingginya dihitung dari
+                // konstanta yang sama dengan extentFor(), jadi keduanya tidak
+                // bisa berbeda.
                 SizedBox(
-                  height: 38,
+                  height: _labelHeight(context),
                   child: Text(
                     label,
-                    maxLines: 2,
+                    maxLines: _labelLines,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 14,
-                      height: 1.3,
+                      fontSize: _labelFontSize,
+                      height: _labelLineHeight,
                       fontWeight: FontWeight.w600,
                       color: enabled ? AppColors.ink900 : AppColors.ink500,
                     ),

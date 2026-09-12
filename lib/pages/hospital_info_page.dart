@@ -119,24 +119,40 @@ class HospitalInfoPage extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Row(
+        // Sebelumnya ikon, teks dan tombol berdesakan dalam satu Row: alamat
+        // yang membungkus tiga baris menekan tombol sampai hampir tanpa ruang.
+        // Tombol kini pindah ke barisnya sendiri, selebar isi, sehingga jarak
+        // tetap wajar berapa pun panjang teksnya.
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: Theme.of(context).colorScheme.primary, size: 32),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: TextStyle(color: Colors.grey.shade700, fontSize: 15)),
-                ],
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, color: Theme.of(context).colorScheme.primary, size: 28),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: TextStyle(color: Colors.grey.shade700, fontSize: 15, height: 1.35),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             if (actionWidget != null) ...[
-              const SizedBox(width: 8),
-              actionWidget,
-            ]
+              const SizedBox(height: 14),
+              SizedBox(width: double.infinity, child: actionWidget),
+            ],
           ],
         ),
       ),
