@@ -366,6 +366,27 @@ VALIDATORS: dict[str, dict[str, Any]] = {
             "evidence": {"bsonType": "object"},
         },
     },
+    "articles": {
+        "bsonType": "object",
+        "required": ["slug", "judul", "published"],
+        "properties": {
+            "slug": {"bsonType": "string", "minLength": 1},
+            "judul": {"bsonType": "string", "minLength": 1},
+            "ringkasan": {"bsonType": "string"},
+            "konten": {"bsonType": "string"},
+            "kategori": {"bsonType": "string"},
+            "image_url": {"bsonType": ["string", "null"]},
+            "penulis": {"bsonType": ["string", "null"]},
+            "sumber": {"bsonType": ["string", "null"]},
+            "featured": {"bsonType": "bool"},
+            "published": {"bsonType": "bool"},
+            "reading_minutes": {"bsonType": "int", "minimum": 1},
+            "views": {"bsonType": "int", "minimum": 0},
+            "published_at": {"bsonType": "date"},
+            "updated_at": {"bsonType": "date"},
+            "seeded": {"bsonType": "bool"},
+        },
+    },
     "audit_log": {
         "bsonType": "object",
         "required": ["who", "what", "at"],
@@ -541,6 +562,16 @@ INDEXES: dict[str, list[IndexModel]] = {
     "consent": [
         IndexModel([("peserta_id", ASCENDING), ("purpose", ASCENDING)], name="peserta_purpose"),
         IndexModel([("revoked_at", ASCENDING)], name="revoked"),
+    ],
+    "articles": [
+        IndexModel([("slug", ASCENDING)], name="uniq_slug", unique=True),
+        # Urutan daftar: unggulan dulu, lalu terbaru. Index majemuk ini yang
+        # membuat sort tidak memindai seluruh koleksi.
+        IndexModel(
+            [("published", ASCENDING), ("featured", DESCENDING), ("published_at", DESCENDING)],
+            name="published_featured_recent",
+        ),
+        IndexModel([("kategori", ASCENDING), ("published_at", DESCENDING)], name="kategori_recent"),
     ],
     "audit_log": [
         IndexModel(
