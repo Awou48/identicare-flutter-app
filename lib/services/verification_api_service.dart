@@ -44,6 +44,15 @@ class VerificationApiService {
     return _map(result, VerificationSession.fromJson);
   }
 
+  /// Daftarkan (atau perbarui) rahasia attestation perangkat ini di server.
+  ///
+  /// Idempoten - dipanggil setiap kali alur dimulai. Tanpa ini langkah sidik
+  /// jari selalu berakhir DEVICE_NOT_ENROLLED: server tidak punya rahasia untuk
+  /// memverifikasi tanda tangannya.
+  Future<ApiResult<Map<String, dynamic>>> enrollDevice(Map<String, dynamic> payload) {
+    return _client.postJson('/enrollment/device', body: payload);
+  }
+
   Future<ApiResult<SessionState>> getSession(String sessionId, String token) async {
     final result = await _client.getJson(
       '/verification/sessions/$sessionId',

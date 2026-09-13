@@ -190,8 +190,15 @@ def main() -> int:
             "model": "SM-A546E",
             "app_version": "1.1.0+3",
         },
+        headers=c.auth,
     )
     check(r.status_code == 200, "device enrolled", f"level={r.json().get('security_level')}")
+
+    r = c.http.post(
+        f"{api}/enrollment/device",
+        json={"device_uid": device_uid, "shared_secret_b64": base64.b64encode(b"x" * 32).decode()},
+    )
+    check(r.status_code == 401, "device enrolment refused without a signed-in user", f"got {r.status_code}")
 
     r = c.http.post(
         f"{api}/enrollment/face",

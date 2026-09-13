@@ -119,6 +119,17 @@ class VerificationFlowController extends ChangeNotifier {
     _setBusy(true);
     _noBpjs = noBpjs;
 
+    // Rahasia perangkat harus sudah ada di server sebelum langkah 2. Ini
+    // upsert murah, jadi dilakukan setiap kali - lebih sederhana daripada
+    // menyimpan penanda "sudah terdaftar" yang bisa basi kalau database
+    // server di-reset. Kegagalannya tidak menghentikan alur: langkah 2 akan
+    // melaporkan DEVICE_NOT_ENROLLED dengan jelas kalau memang gagal.
+    final enrol = await _api.enrollDevice(await _attestation.enrollmentPayload());
+    enrol.when(
+      ok: (_) {},
+      failure: (f) => debugPrint('pendaftaran perangkat gagal: ${f.errorCode} ${f.message}'),
+    );
+
     final result = await _api.startSession(
       noBpjs: noBpjs,
       kodeFaskes: kodeFaskes,
@@ -216,7 +227,8 @@ class VerificationFlowController extends ChangeNotifier {
     );
 
     if (!attestation.ok) {
-      _fail(attestation.message ?? 'Verifikasi sidik jari gagal.');
+      debugPrint('attestation gagal: ${attestation.errorCode} ${attestation.detail}');
+      _fail(attestation.message ?? 'Verifikasi sidik jari gagal.', attestation.errorCode);
       return false;
     }
 

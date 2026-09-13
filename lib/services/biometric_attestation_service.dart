@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';
 import 'package:identicare_mobile/services/device_identity_service.dart';
@@ -98,15 +99,20 @@ class BiometricAttestationService {
           ),
         ],
       );
-    } on Exception catch (e) {
-      final message = e.toString();
-      final noHardware =
-          message.contains('NotAvailable') || message.contains('NotEnrolled');
+    } on PlatformException catch (e) {
+      // Setiap kode punya artinya sendiri. Sebelumnya semuanya - termasuk
+      // kesalahan konfigurasi aplikasi - dilaporkan sebagai "dibatalkan",
+      // sehingga tidak ada yang bisa didiagnosis dari layar.
       return AttestationResult.failure(
-        errorCode: noHardware ? 'NO_BIOMETRIC_HARDWARE' : 'BIOMETRIC_CANCELLED',
-        message: noHardware
-            ? 'Sensor sidik jari tidak tersedia di perangkat ini.'
-            : 'Verifikasi sidik jari dibatalkan.',
+        errorCode: _codeFor(e.code),
+        message: _messageFor(e.code),
+        detail: '${e.code}: ${e.message}',
+      );
+    } on Exception catch (e) {
+      return AttestationResult.failure(
+        errorCode: 'BIOMETRIC_CANCELLED',
+        message: 'Verifikasi sidik jari gagal dijalankan.',
+        detail: e.toString(),
       );
     }
 
@@ -137,6 +143,44 @@ class BiometricAttestationService {
       deviceUid: deviceUid,
       timestamp: timestamp,
     );
+  }
+
+  static String _codeFor(String platformCode) {
+    switch (platformCode) {
+      case 'NotAvailable':
+      case 'NotEnrolled':
+      case 'PasscodeNotSet':
+        return 'NO_BIOMETRIC_HARDWARE';
+      case 'LockedOut':
+      case 'PermanentlyLockedOut':
+        return 'BIOMETRIC_LOCKED_OUT';
+      case 'no_fragment_activity':
+      case 'auth_in_progress':
+        return 'BIOMETRIC_UNAVAILABLE';
+      default:
+        return 'BIOMETRIC_CANCELLED';
+    }
+  }
+
+  static String _messageFor(String platformCode) {
+    switch (platformCode) {
+      case 'NotAvailable':
+        return 'Sensor sidik jari tidak tersedia di perangkat ini.';
+      case 'NotEnrolled':
+        return 'Belum ada sidik jari terdaftar. Daftarkan lewat Pengaturan > Keamanan.';
+      case 'PasscodeNotSet':
+        return 'Kunci layar belum diatur. Atur PIN/pola dan daftarkan sidik jari.';
+      case 'LockedOut':
+        return 'Terlalu banyak percobaan. Sensor terkunci 30 detik.';
+      case 'PermanentlyLockedOut':
+        return 'Sensor terkunci. Buka kunci perangkat dengan PIN/pola, lalu coba lagi.';
+      case 'no_fragment_activity':
+        return 'Kesalahan konfigurasi aplikasi: prompt biometrik tidak dapat ditampilkan.';
+      case 'auth_in_progress':
+        return 'Prompt sidik jari masih terbuka.';
+      default:
+        return 'Verifikasi sidik jari dibatalkan.';
+    }
   }
 
   /// Payload pendaftaran perangkat untuk POST /enrollment/device.
@@ -175,6 +219,9 @@ class AttestationResult {
   final String? errorCode;
   final String? message;
 
+  /// Kode mentah dari platform - untuk log, bukan untuk pengguna.
+  final String? detail;
+
   const AttestationResult._({
     required this.ok,
     this.method,
@@ -183,6 +230,7 @@ class AttestationResult {
     this.timestamp,
     this.errorCode,
     this.message,
+    this.detail,
   });
 
   factory AttestationResult.success({
@@ -202,6 +250,7 @@ class AttestationResult {
   factory AttestationResult.failure({
     required String errorCode,
     required String message,
+    String? detail,
   }) =>
-      AttestationResult._(ok: false, errorCode: errorCode, message: message);
+      AttestationResult._(ok: false, errorCode: errorCode, message: message, detail: detail);
 }

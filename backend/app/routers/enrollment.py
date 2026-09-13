@@ -490,12 +490,17 @@ async def enroll_device(
     payload: dict,
     db: DbDep,
     settings: SettingsDep,
+    user: CurrentUserDep,
 ) -> dict:
     """Register a device public key (Tier B) or shared secret hash (Tier A).
 
     Tier A stores a 32-byte secret so the server can verify an HMAC. That secret
     IS extractable in principle, which is exactly why sessions verified this way
     are recorded as security_level SOFTWARE and raise a fraud signal.
+
+    Requires a signed-in user, and the record is stamped with THAT uid, not one
+    from the body: an unauthenticated upsert would let anyone who learned a
+    device_uid replace its secret with their own and then sign as that device.
     """
     device_uid = payload.get("device_uid")
     if not device_uid or len(device_uid) < 16:
@@ -506,7 +511,7 @@ async def enroll_device(
 
     doc: dict = {
         "device_uid": device_uid,
-        "firebase_uid": payload.get("firebase_uid"),
+        "firebase_uid": user.uid,
         "platform": payload.get("platform", "android"),
         "last_seen": now,
         "blocked": False,
