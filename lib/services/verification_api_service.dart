@@ -303,6 +303,24 @@ class VerificationApiService {
     return _map(result, PesertaStatus.fromJson);
   }
 
+  /// Tautkan akun login ke satu peserta BPJS dengan bukti kepemilikan
+  /// (nomor BPJS + NIK + tanggal lahir - ketiganya ada di kartu fisik).
+  ///
+  /// Inilah jembatan antara Firebase Auth dan data BPJS di MongoDB yang
+  /// sebelumnya tidak ada untuk pengguna biasa: tanpa langkah ini setiap akun
+  /// baru berakhir di PESERTA_NOT_FOUND di semua layar.
+  Future<ApiResult<Map<String, dynamic>>> linkBpjs({
+    required String noBpjs,
+    required String nik,
+    required String tanggalLahir,
+  }) {
+    return _client.postJson('/peserta/link', body: {
+      'no_bpjs': noBpjs,
+      'nik': nik,
+      'tanggal_lahir': tanggalLahir,
+    });
+  }
+
   /// Pendaftaran biometrik mandiri oleh peserta dari ponselnya sendiri.
   ///
   /// Diautentikasi dengan token Firebase peserta, bukan kunci operator - kunci

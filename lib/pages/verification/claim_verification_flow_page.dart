@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:identicare_mobile/config/app_config.dart';
 import 'package:identicare_mobile/pages/verification/biometric_enrollment_page.dart';
+import 'package:identicare_mobile/pages/verification/link_bpjs_page.dart';
 import 'package:identicare_mobile/pages/verification/steps/step_1_face_scan_page.dart';
 import 'package:identicare_mobile/pages/verification/steps/step_2_fingerprint_page.dart';
 import 'package:identicare_mobile/pages/verification/steps/step_3_review_data_page.dart';
@@ -165,6 +166,13 @@ class _ClaimVerificationFlowPageState extends State<ClaimVerificationFlowPage> {
         needsEnrollment: controller.needsEnrollment,
         needsBpjsLink: controller.needsBpjsLink,
         onRetry: _retry,
+        onLink: () async {
+          final linked = await Navigator.push<Map<String, dynamic>>(
+            context,
+            MaterialPageRoute(builder: (_) => const LinkBpjsPage()),
+          );
+          if (linked != null && mounted) _retry();
+        },
         onEnroll: () async {
           final done = await Navigator.push<bool>(
             context,
@@ -209,6 +217,7 @@ class _StartFailure extends StatelessWidget {
     required this.message,
     required this.onRetry,
     required this.onEnroll,
+    required this.onLink,
     this.needsEnrollment = false,
     this.needsBpjsLink = false,
   });
@@ -216,6 +225,7 @@ class _StartFailure extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
   final Future<void> Function() onEnroll;
+  final Future<void> Function() onLink;
   final bool needsEnrollment;
   final bool needsBpjsLink;
 
@@ -263,7 +273,19 @@ class _StartFailure extends StatelessWidget {
               style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 24),
-            if (needsEnrollment)
+            // Tombolnya mengikuti penyebabnya. "Coba Lagi" untuk akun yang belum
+            // tertaut tidak pernah bisa berhasil - yang dibutuhkan adalah
+            // tindakan, bukan pengulangan.
+            if (needsBpjsLink)
+              FilledButton.icon(
+                onPressed: onLink,
+                icon: const Icon(Icons.link_rounded),
+                label: const Text('Tautkan Nomor BPJS'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                ),
+              )
+            else if (needsEnrollment)
               FilledButton.icon(
                 onPressed: onEnroll,
                 icon: const Icon(Icons.how_to_reg_rounded),
@@ -278,14 +300,6 @@ class _StartFailure extends StatelessWidget {
                 icon: const Icon(Icons.refresh),
                 label: const Text('Coba Lagi'),
               ),
-            if (needsBpjsLink) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Lengkapi nomor BPJS di halaman Profil.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
-              ),
-            ],
           ],
         ),
       ),

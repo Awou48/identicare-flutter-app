@@ -10,6 +10,7 @@ import 'package:identicare_mobile/pages/notifications_page.dart';
 import 'package:identicare_mobile/pages/settings_page.dart';
 import 'package:identicare_mobile/pages/telemedicine_page.dart';
 import 'package:identicare_mobile/pages/verification/claim_verification_flow_page.dart';
+import 'package:identicare_mobile/pages/verification/link_bpjs_page.dart';
 import 'package:identicare_mobile/pages/verification/verification_history_page.dart';
 import 'package:identicare_mobile/services/auth_service.dart';
 import 'package:identicare_mobile/services/biometric_attestation_service.dart';
@@ -34,10 +35,17 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
+/// Keadaan peserta di mata beranda. Empat, bukan dua: "server tidak
+/// terjangkau" dan "akun belum tertaut BPJS" sebelumnya sama-sama jatuh ke
+/// `null` dan ditampilkan sebagai "belum dimuat" - padahal yang satu masalah
+/// jaringan, yang lain butuh tindakan pengguna, dan menyamakannya membuat
+/// pengguna tidak tahu harus berbuat apa.
+enum _PesertaState { unknown, notLinked, notEnrolled, enrolled }
+
 class _HomePageState extends State<HomePage> {
   final _deviceIdentity = DeviceIdentityService();
 
-  bool? _biometricEnrolled;
+  _PesertaState _peserta = _PesertaState.unknown;
   Article? _featuredArticle;
 
   @override
@@ -59,8 +67,19 @@ class _HomePageState extends State<HomePage> {
     final result = await api.pesertaMe();
     if (!mounted) return;
     result.when(
-      ok: (status) => setState(() => _biometricEnrolled = status.biometricEnrolled),
-      failure: (_) => setState(() => _biometricEnrolled = null),
+      ok: (status) => setState(() {
+        _peserta = status.biometricEnrolled
+            ? _PesertaState.enrolled
+            : _PesertaState.notEnrolled;
+      }),
+      failure: (f) => setState(() {
+        // 404 dari /me berarti akunnya belum tertaut - itu keadaan yang bisa
+        // diselesaikan pengguna, bukan kegagalan. Sisanya benar-benar tidak
+        // diketahui (jaringan, server mati).
+        _peserta = f.errorCode == 'PESERTA_NOT_FOUND'
+            ? _PesertaState.notLinked
+            : _PesertaState.unknown;
+      }),
     );
   }
 
@@ -90,7 +109,8 @@ class _HomePageState extends State<HomePage> {
           children: [
             _Header(
               authService: authService,
-              biometricEnrolled: _biometricEnrolled,
+              state: _peserta,
+              onLink: () => _linkBpjs(context),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -165,20 +185,42 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final authService = context.read<AuthService>();
     final api = context.read<VerificationApiService>();
-    final noBpjs = await authService.getNoBpjs();
 
+    // Sumber kebenarannya adalah peserta.firebase_uid di server, bukan field
+    // noBpjs di Firestore. Versi lama menyimpan nomor yang diketik pengguna ke
+    // Firestore dan langsung memulai alur dengannya - server lalu menjawab
+    // PESERTA_NOT_FOUND, karena tidak ada satu pun langkah yang pernah
+    // menautkan akun ke catatan BPJS-nya.
+    final me = await api.pesertaMe();
     if (!context.mounted) return;
 
-    if (noBpjs == null) {
-      final entered = await _askForBpjs(context);
-      if (entered == null || !context.mounted) return;
-      await authService.setNoBpjs(entered);
-      if (!context.mounted) return;
-      return _openFlow(context, api, entered);
-    }
-    return _openFlow(context, api, noBpjs);
+    final status = await me.when<Future<PesertaStatus?>>(
+      ok: (status) async => status,
+      failure: (f) async {
+        if (f.errorCode != 'PESERTA_NOT_FOUND') {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(f.message)));
+          return null;
+        }
+        final linked = await _linkBpjs(context);
+        if (!linked || !context.mounted) return null;
+        final again = await api.pesertaMe();
+        return again.valueOrNull;
+      },
+    );
+    if (status == null || !context.mounted) return;
+
+    return _openFlow(context, api, status.noBpjs);
+  }
+
+  /// Buka halaman penautan. Mengembalikan true kalau akun berhasil ditautkan.
+  Future<bool> _linkBpjs(BuildContext context) async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(builder: (_) => const LinkBpjsPage()),
+    );
+    if (mounted) _loadBiometricStatus();
+    return result != null;
   }
 
   Future<void> _openFlow(
@@ -207,55 +249,19 @@ class _HomePageState extends State<HomePage> {
     if (mounted) _loadBiometricStatus();
   }
 
-  Future<String?> _askForBpjs(BuildContext context) {
-    final controller = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    return showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Nomor BPJS'),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            maxLength: 13,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Nomor BPJS (13 digit)',
-              prefixIcon: Icon(Icons.badge_outlined),
-            ),
-            validator: (value) =>
-                (value == null || !RegExp(r'^[0-9]{13}$').hasMatch(value.trim()))
-                    ? 'Nomor BPJS harus 13 digit'
-                    : null,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(context, controller.text.trim());
-              }
-            },
-            child: const Text('Lanjutkan'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // --------------------------------------------------------------------- //
 class _Header extends StatelessWidget {
-  const _Header({required this.authService, required this.biometricEnrolled});
+  const _Header({
+    required this.authService,
+    required this.state,
+    required this.onLink,
+  });
 
   final AuthService authService;
-  final bool? biometricEnrolled;
+  final _PesertaState state;
+  final VoidCallback onLink;
 
   @override
   Widget build(BuildContext context) {
@@ -362,7 +368,7 @@ class _Header extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      _StatusBadge(enrolled: biometricEnrolled),
+                      _StatusBadge(state: state, onLink: onLink),
                     ],
                   );
                 },
@@ -376,34 +382,46 @@ class _Header extends StatelessWidget {
 }
 
 class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.enrolled});
+  const _StatusBadge({required this.state, required this.onLink});
 
-  /// null berarti status belum diketahui - server tidak terjangkau. Itu bukan
-  /// hal yang sama dengan "belum terdaftar", dan menampilkannya sebagai
-  /// "belum terdaftar" akan membuat pengguna mengira datanya hilang.
-  final bool? enrolled;
+  final _PesertaState state;
+  final VoidCallback onLink;
 
   @override
   Widget build(BuildContext context) {
-    if (enrolled == null) {
-      return const AppStatusBadge(
-        label: 'Status biometrik belum dimuat',
-        icon: Icons.cloud_off_rounded,
-        color: Colors.white70,
-      );
+    switch (state) {
+      case _PesertaState.unknown:
+        // Server tidak terjangkau. Bukan "belum terdaftar": menampilkannya
+        // begitu membuat pengguna mengira datanya hilang.
+        return const AppStatusBadge(
+          label: 'Status biometrik belum dimuat',
+          icon: Icons.cloud_off_rounded,
+          color: Colors.white70,
+        );
+      case _PesertaState.notLinked:
+        // Keadaan yang bisa diselesaikan pengguna - lencananya bisa diketuk.
+        return InkWell(
+          onTap: onLink,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          child: const AppStatusBadge(
+            label: 'Tautkan nomor BPJS Anda',
+            icon: Icons.link_rounded,
+            color: Color(0xFFFFE08A),
+          ),
+        );
+      case _PesertaState.notEnrolled:
+        return const AppStatusBadge(
+          label: 'Biometrik belum terdaftar',
+          icon: Icons.error_outline_rounded,
+          color: Color(0xFFFFE08A),
+        );
+      case _PesertaState.enrolled:
+        return const AppStatusBadge(
+          label: 'Terverifikasi dalam BPJS',
+          icon: Icons.check_circle_rounded,
+          color: AppColors.white,
+        );
     }
-    if (enrolled!) {
-      return const AppStatusBadge(
-        label: 'Terverifikasi dalam BPJS',
-        icon: Icons.check_circle_rounded,
-        color: AppColors.white,
-      );
-    }
-    return const AppStatusBadge(
-      label: 'Biometrik belum terdaftar',
-      icon: Icons.error_outline_rounded,
-      color: Color(0xFFFFE08A),
-    );
   }
 }
 
@@ -488,6 +506,10 @@ class _ServiceGrid extends StatelessWidget {
     return GridView(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
+      // Wajib nol. Tanpa padding eksplisit, ScrollView menyerap inset
+      // MediaQuery - di ponsel dengan status bar itu berarti ~48 px ruang
+      // kosong di atas grid, tepat di bawah judul "Layanan".
+      padding: EdgeInsets.zero,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: AppSpacing.md,
