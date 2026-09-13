@@ -1,8 +1,3 @@
-/// Hasil tiap langkah biometrik.
-///
-/// Semua ini datang sebagai HTTP 200 walaupun [passed] bernilai false: wajah
-/// yang tidak cocok adalah keputusan sistem yang benar, bukan error, dan UI
-/// harus menampilkan skor serta sisa percobaannya.
 library;
 
 class LivenessInfo {
@@ -63,7 +58,6 @@ class FaceStepResult {
   final int? attemptsUsed;
   final int? attemptsLeft;
 
-  /// Nonce baru untuk langkah sidik jari, hanya ada kalau langkah ini lolos.
   final String? nonce;
 
   const FaceStepResult({
@@ -98,7 +92,6 @@ class FaceStepResult {
         nonce: json['nonce'] as String?,
       );
 
-  /// Batas percobaan habis: sesi sudah ditolak server, tidak bisa diulang.
   bool get isExhausted => errorCode == 'MAX_ATTEMPTS' || attemptsLeft == 0;
 }
 
@@ -108,8 +101,6 @@ class FingerprintStepResult {
   final String? message;
   final bool signatureVerified;
 
-  /// TEE / STRONGBOX / SOFTWARE. SOFTWARE berarti jalur HMAC tanpa pengikatan
-  /// perangkat keras, dan memicu sinyal fraud SOFTWARE_KEY_ONLY.
   final String? securityLevel;
 
   final int? attemptsUsed;
@@ -139,7 +130,6 @@ class FingerprintStepResult {
   bool get isHardwareBacked =>
       securityLevel == 'TEE' || securityLevel == 'STRONGBOX';
 
-  /// Batas percobaan habis: server sudah menolak sesi, tidak bisa diulang.
   bool get isExhausted => errorCode == 'MAX_ATTEMPTS' || attemptsLeft == 0;
 }
 
@@ -156,7 +146,8 @@ class LivenessChallenge {
     required this.expiresAt,
   });
 
-  factory LivenessChallenge.fromJson(Map<String, dynamic> json) => LivenessChallenge(
+  factory LivenessChallenge.fromJson(Map<String, dynamic> json) =>
+      LivenessChallenge(
         challengeId: json['challenge_id'] as String,
         challenge: json['challenge'] as String,
         instruction: json['instruction'] as String,

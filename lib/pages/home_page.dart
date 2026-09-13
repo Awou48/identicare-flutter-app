@@ -21,13 +21,6 @@ import 'package:identicare_mobile/theme/app_theme.dart';
 import 'package:identicare_mobile/widgets/common/app_components.dart';
 import 'package:provider/provider.dart';
 
-/// Beranda.
-///
-/// Disusun ulang agar mencerminkan bahwa ini produk verifikasi biometrik, bukan
-/// aplikasi telehealth umum. Fitur generik ("Cek Gejala", "Konsultasi
-/// Langsung") tidak lagi bersaing dengan aksi utama; keduanya tetap dapat
-/// diakses - Konsultasi Langsung lewat tab Jadwal, Cek Gejala dari dalam
-/// Konsultasi Online - tetapi tidak lagi menempati ruang di layar pertama.
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -35,11 +28,6 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-/// Keadaan peserta di mata beranda. Empat, bukan dua: "server tidak
-/// terjangkau" dan "akun belum tertaut BPJS" sebelumnya sama-sama jatuh ke
-/// `null` dan ditampilkan sebagai "belum dimuat" - padahal yang satu masalah
-/// jaringan, yang lain butuh tindakan pengguna, dan menyamakannya membuat
-/// pengguna tidak tahu harus berbuat apa.
 enum _PesertaState { unknown, notLinked, notEnrolled, enrolled }
 
 class _HomePageState extends State<HomePage> {
@@ -57,11 +45,6 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  /// Status pendaftaran biometrik untuk lencana di header.
-  ///
-  /// Sengaja tidak memblokir tampilan: kalau server tidak terjangkau, lencananya
-  /// menjadi "tidak diketahui", bukan layar error. Beranda harus tetap berguna
-  /// saat backend mati.
   Future<void> _loadBiometricStatus() async {
     final api = context.read<VerificationApiService>();
     final result = await api.pesertaMe();
@@ -73,9 +56,6 @@ class _HomePageState extends State<HomePage> {
             : _PesertaState.notEnrolled;
       }),
       failure: (f) => setState(() {
-        // 404 dari /me berarti akunnya belum tertaut - itu keadaan yang bisa
-        // diselesaikan pengguna, bukan kegagalan. Sisanya benar-benar tidak
-        // diketahui (jaringan, server mati).
         _peserta = f.errorCode == 'PESERTA_NOT_FOUND'
             ? _PesertaState.notLinked
             : _PesertaState.unknown;
@@ -124,19 +104,15 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   _PrimaryAction(onTap: () => _startVerification(context)),
                   const SizedBox(height: AppSpacing.xxl),
-
                   const AppSectionHeader(title: 'Layanan'),
                   _ServiceGrid(
                     onRiwayat: () => _push(const VerificationHistoryScreen()),
-                    onPembaruan: () => _startVerification(context, enrolment: true),
+                    onPembaruan: () =>
+                        _startVerification(context, enrolment: true),
                     onRekamMedis: () => _push(const MedicalRecordsPage()),
                     onKonsultasi: () => _push(const TelemedicinePage()),
                   ),
                   const SizedBox(height: AppSpacing.lg),
-
-                  // Sebelumnya ini kartu ungu besar yang bersaing dengan aksi
-                  // utama. Sebagai baris daftar, ia tetap mudah dijangkau tanpa
-                  // menuntut perhatian sebanyak itu.
                   AppListTileCard(
                     title: 'Info Rumah Sakit',
                     subtitle: 'Fasilitas, poli, dan jam layanan',
@@ -144,7 +120,6 @@ class _HomePageState extends State<HomePage> {
                     onTap: () => _push(const HospitalInfoPage()),
                   ),
                   const SizedBox(height: AppSpacing.xxl),
-
                   AppSectionHeader(
                     title: 'Artikel Kesehatan',
                     action: 'Lihat semua',
@@ -154,7 +129,8 @@ class _HomePageState extends State<HomePage> {
                     article: _featuredArticle,
                     onTap: _featuredArticle == null
                         ? null
-                        : () => _push(ArticleDetailPage(slug: _featuredArticle!.slug)),
+                        : () => _push(
+                            ArticleDetailPage(slug: _featuredArticle!.slug)),
                   ),
                 ],
               ),
@@ -169,17 +145,13 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(context, MaterialPageRoute(builder: (_) => page));
   }
 
-  // ------------------------------------------------------------------ //
-  /// Buka alur verifikasi 4 langkah.
-  ///
-  /// Controller di-scope PADA halaman alur, bukan di main.dart, sehingga ia
-  /// dibuat saat masuk dan dibuang saat keluar - tidak ada state verifikasi yang
-  /// tertinggal di memori setelah pengguna selesai.
-  Future<void> _startVerification(BuildContext context, {bool enrolment = false}) async {
+  Future<void> _startVerification(BuildContext context,
+      {bool enrolment = false}) async {
     if (!ClaimVerificationFlowPage.isSupportedPlatform) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Fitur verifikasi biometrik hanya tersedia di aplikasi Android.'),
+          content: Text(
+              'Fitur verifikasi biometrik hanya tersedia di aplikasi Android.'),
         ),
       );
       return;
@@ -187,11 +159,6 @@ class _HomePageState extends State<HomePage> {
 
     final api = context.read<VerificationApiService>();
 
-    // Sumber kebenarannya adalah peserta.firebase_uid di server, bukan field
-    // noBpjs di Firestore. Versi lama menyimpan nomor yang diketik pengguna ke
-    // Firestore dan langsung memulai alur dengannya - server lalu menjawab
-    // PESERTA_NOT_FOUND, karena tidak ada satu pun langkah yang pernah
-    // menautkan akun ke catatan BPJS-nya.
     final me = await api.pesertaMe();
     if (!context.mounted) return;
 
@@ -199,7 +166,8 @@ class _HomePageState extends State<HomePage> {
       ok: (status) async => status,
       failure: (f) async {
         if (f.errorCode != 'PESERTA_NOT_FOUND') {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(f.message)));
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(f.message)));
           return null;
         }
         final linked = await _linkBpjs(context);
@@ -213,7 +181,6 @@ class _HomePageState extends State<HomePage> {
     return _openFlow(context, api, status.noBpjs);
   }
 
-  /// Buka halaman penautan. Mengembalikan true kalau akun berhasil ditautkan.
   Future<bool> _linkBpjs(BuildContext context) async {
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
@@ -248,10 +215,8 @@ class _HomePageState extends State<HomePage> {
     );
     if (mounted) _loadBiometricStatus();
   }
-
 }
 
-// --------------------------------------------------------------------- //
 class _Header extends StatelessWidget {
   const _Header({
     required this.authService,
@@ -318,21 +283,25 @@ class _Header extends StatelessWidget {
                         ),
                         Text(
                           'Verifikasi Klaim BPJS',
-                          style: TextStyle(color: Colors.white70, fontSize: 11.5),
+                          style:
+                              TextStyle(color: Colors.white70, fontSize: 11.5),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.notifications_none_rounded, color: AppColors.white),
+                    icon: const Icon(Icons.notifications_none_rounded,
+                        color: AppColors.white),
                     tooltip: 'Notifikasi',
                     onPressed: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const NotificationsPage()),
+                      MaterialPageRoute(
+                          builder: (_) => const NotificationsPage()),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.settings_outlined, color: AppColors.white),
+                    icon: const Icon(Icons.settings_outlined,
+                        color: AppColors.white),
                     tooltip: 'Pengaturan',
                     onPressed: () => Navigator.push(
                       context,
@@ -342,9 +311,6 @@ class _Header extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppSpacing.xl),
-
-              // Nama dinamis. Sebelumnya "Halo," bisa tampil kosong tanpa
-              // penjelasan apa pun saat profil belum termuat.
               StreamBuilder<DocumentSnapshot>(
                 stream: authService.userProfileStream,
                 builder: (context, snapshot) {
@@ -359,7 +325,9 @@ class _Header extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        name == null ? 'Halo' : 'Halo, ${name.split(' ').first}',
+                        name == null
+                            ? 'Halo'
+                            : 'Halo, ${name.split(' ').first}',
                         style: const TextStyle(
                           color: AppColors.white,
                           fontSize: 26,
@@ -391,15 +359,12 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (state) {
       case _PesertaState.unknown:
-        // Server tidak terjangkau. Bukan "belum terdaftar": menampilkannya
-        // begitu membuat pengguna mengira datanya hilang.
         return const AppStatusBadge(
           label: 'Status biometrik belum dimuat',
           icon: Icons.cloud_off_rounded,
           color: Colors.white70,
         );
       case _PesertaState.notLinked:
-        // Keadaan yang bisa diselesaikan pengguna - lencananya bisa diketuk.
         return InkWell(
           onTap: onLink,
           borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -425,7 +390,6 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-// --------------------------------------------------------------------- //
 class _PrimaryAction extends StatelessWidget {
   const _PrimaryAction({required this.onTap});
 
@@ -473,13 +437,15 @@ class _PrimaryAction extends StatelessWidget {
                     SizedBox(height: 3),
                     Text(
                       'Wajah dan sidik jari sebelum mengajukan klaim',
-                      style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.35),
+                      style: TextStyle(
+                          color: Colors.white70, fontSize: 12.5, height: 1.35),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              const Icon(Icons.arrow_forward_rounded, color: AppColors.white, size: AppIcons.md),
+              const Icon(Icons.arrow_forward_rounded,
+                  color: AppColors.white, size: AppIcons.md),
             ],
           ),
         ),
@@ -506,15 +472,11 @@ class _ServiceGrid extends StatelessWidget {
     return GridView(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      // Wajib nol. Tanpa padding eksplisit, ScrollView menyerap inset
-      // MediaQuery - di ponsel dengan status bar itu berarti ~48 px ruang
-      // kosong di atas grid, tepat di bawah judul "Layanan".
       padding: EdgeInsets.zero,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: AppSpacing.md,
         mainAxisSpacing: AppSpacing.md,
-        // Tinggi ditentukan isi kartu, bukan diturunkan dari lebar layar.
         mainAxisExtent: AppGridTile.extentFor(context),
       ),
       children: [
@@ -561,7 +523,8 @@ class _ArticleCard extends StatelessWidget {
         ),
         child: const Row(
           children: [
-            Icon(Icons.article_outlined, color: AppColors.ink300, size: AppIcons.lg),
+            Icon(Icons.article_outlined,
+                color: AppColors.ink300, size: AppIcons.lg),
             SizedBox(width: AppSpacing.lg),
             Expanded(
               child: Text(
@@ -606,9 +569,10 @@ class _ArticleCard extends StatelessWidget {
                       child: const Icon(Icons.image_not_supported_outlined,
                           color: AppColors.ink300),
                     ),
-                    loadingBuilder: (context, child, progress) => progress == null
-                        ? child
-                        : Container(height: 150, color: AppColors.ink100),
+                    loadingBuilder: (context, child, progress) =>
+                        progress == null
+                            ? child
+                            : Container(height: 150, color: AppColors.ink100),
                   ),
                 ),
               Padding(
@@ -626,8 +590,6 @@ class _ArticleCard extends StatelessWidget {
                       ),
                       const SizedBox(height: AppSpacing.md),
                     ],
-                    // Judul tebal, isi 70% opasitas - hierarki yang sebelumnya
-                    // rata sehingga keduanya terbaca sama penting.
                     Text(
                       item.judul,
                       maxLines: 2,
@@ -661,8 +623,6 @@ class _ArticleCard extends StatelessWidget {
   }
 }
 
-/// Pembungkus agar riwayat verifikasi punya Scaffold sendiri saat dibuka dari
-/// beranda; di dalam tab Aktivitas ia dipakai tanpa Scaffold.
 class VerificationHistoryScreen extends StatelessWidget {
   const VerificationHistoryScreen({super.key});
 

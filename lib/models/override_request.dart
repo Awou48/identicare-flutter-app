@@ -1,10 +1,3 @@
-/// Override petugas (break-glass) ketika biometrik memang tidak bisa lolos.
-///
-/// Ini bukan jalan pintas. Alur normal tiga kali gagal lalu berhenti, dan itu
-/// berarti pasien dengan wajah memar atau jari luka bakar ditolak - justru
-/// kelompok yang paling membutuhkan layanan. Override ada untuk itu, dan
-/// sengaja dibuat lebih mahal serta lebih terlihat daripada alur normal:
-/// dua petugas berbeda, alasan dari daftar tertutup, dan bukti foto.
 library;
 
 enum OverrideReason {
@@ -20,8 +13,6 @@ enum OverrideReason {
   final String code;
   final String label;
 
-  /// Hanya LAINNYA yang mewajibkan penjelasan bebas. Alasan lain sudah cukup
-  /// spesifik untuk dianalisis lintas petugas dan faskes.
   bool get requiresNote => this == OverrideReason.lainnya;
 
   static OverrideReason? fromCode(String? code) {
@@ -55,12 +46,8 @@ class OverrideRecord {
   final String? approvedByNama;
   final DateTime? approvedAt;
 
-  /// Label bukti yang terlampir ('bpjs_card', 'ktp'). Blob-nya sendiri tidak
-  /// pernah dikirim ke klien - hanya dibaca lewat konsol auditor.
   final List<String> evidenceAttached;
 
-  /// Ringkasan mengapa biometrik gagal, supaya peninjau tidak perlu
-  /// merekonstruksinya dari log kejadian.
   final Map<String, dynamic> failedEvidence;
 
   const OverrideRecord({
@@ -90,16 +77,14 @@ class OverrideRecord {
         evidenceAttached:
             ((json['evidence_attached'] as List?) ?? const []).cast<String>(),
         failedEvidence:
-            (json['failed_evidence'] as Map?)?.cast<String, dynamic>() ?? const {},
+            (json['failed_evidence'] as Map?)?.cast<String, dynamic>() ??
+                const {},
       );
 
   bool get isPending => status == OverrideStatus.pending;
   bool get isApproved => status == OverrideStatus.approved;
 }
 
-/// Sesi petugas. Token disimpan di memori saja, tidak pernah ke disk - petugas
-/// login ulang setiap shift, dan token yang tertinggal di penyimpanan perangkat
-/// adalah kredensial yang bisa dipakai orang lain di meja yang sama.
 class StaffSession {
   final String token;
   final String staffId;

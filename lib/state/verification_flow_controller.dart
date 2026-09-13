@@ -7,23 +7,12 @@ import 'package:identicare_mobile/models/verification_session.dart';
 import 'package:identicare_mobile/services/biometric_attestation_service.dart';
 import 'package:identicare_mobile/services/verification_api_service.dart';
 
-/// State alur verifikasi 4 langkah.
-///
-/// Dua aturan yang menentukan bentuk kelas ini:
-///
-///  1. [currentStep] HANYA diisi dari respons server. Klien tidak pernah
-///     memajukan langkahnya sendiri, karena kalau bisa, penyerang cukup melewati
-///     panggilan liveness dan langsung mengaku lolos.
-///  2. Tidak ada data biometrik yang disimpan di sini. Yang dibawa lintas layar
-///     hanya session_id dan session_token; sumber kebenarannya ada di server,
-///     sehingga aplikasi yang dimatikan di tengah alur bisa dilanjutkan.
 class VerificationFlowController extends ChangeNotifier {
   VerificationFlowController(this._api, this._attestation);
 
   final VerificationApiService _api;
   final BiometricAttestationService _attestation;
 
-  // --- state sesi --- //
   String? _sessionId;
   String? _sessionToken;
   String? _noBpjs;
@@ -32,7 +21,6 @@ class VerificationFlowController extends ChangeNotifier {
   PesertaPreview? _preview;
   DateTime? _expiresAt;
 
-  // --- state UI --- //
   bool _busy = false;
   String? _error;
   String? _errorCode;
@@ -44,15 +32,10 @@ class VerificationFlowController extends ChangeNotifier {
   ReviewData? _reviewData;
   CommitResult? _commitResult;
 
-  /// Kunci idempotensi dibuat SEKALI per alur. Kalau dibuat ulang tiap retry,
-  /// commit kedua akan ditolak 409 dan pengguna kehilangan buktinya.
   final String _idempotencyKey = _uuidV4();
 
-  // --- getters --- //
   String? get sessionId => _sessionId;
 
-  /// Dibutuhkan halaman override, yang memanggil endpoint override langsung.
-  /// Tidak pernah ditulis ke log.
   String? get sessionToken => _sessionToken;
   String? get noBpjs => _noBpjs;
   SessionStep get currentStep => _currentStep;
@@ -61,17 +44,10 @@ class VerificationFlowController extends ChangeNotifier {
   bool get isBusy => _busy;
   String? get error => _error;
 
-  /// Kode mesin dari server, mis. BIOMETRIC_NOT_ENROLLED. Pesannya untuk dibaca
-  /// pengguna; kodenya untuk diputuskan aplikasi. Tanpa ini layar kegagalan
-  /// hanya bisa menampilkan teks dan menawarkan "Coba Lagi", yang tidak
-  /// menolong sama sekali kalau masalahnya adalah belum mendaftar biometrik.
   String? get errorCode => _errorCode;
 
-  /// Belum punya template wajah, jadi alur klaim memang tidak bisa dimulai -
-  /// tetapi itu dapat diselesaikan sendiri lewat pendaftaran mandiri.
   bool get needsEnrollment => _errorCode == 'BIOMETRIC_NOT_ENROLLED';
 
-  /// Akun Firebase ini belum tertaut ke nomor BPJS mana pun.
   bool get needsBpjsLink => _errorCode == 'PESERTA_NOT_FOUND';
   bool get hasSession => _sessionId != null && _sessionToken != null;
 
@@ -85,17 +61,12 @@ class VerificationFlowController extends ChangeNotifier {
 
   bool get isCommitted => _commitResult != null;
 
-  /// Biometrik gagal sampai batas percobaan, jadi override petugas menjadi
-  /// satu-satunya jalan yang sah untuk melanjutkan.
   bool get canRequestOverride =>
       hasSession &&
       !isCommitted &&
       ((_faceResult?.isExhausted ?? false) ||
           (_fingerprintResult?.isExhausted ?? false));
 
-  /// Dipanggil setelah supervisor menyetujui override. Hasilnya diperlakukan
-  /// sama seperti commit biasa supaya layar hasil tidak perlu tahu bedanya -
-  /// perbedaannya ada di `decision`, yaitu APPROVED_WITH_OVERRIDE.
   void applyOverrideResult(Map<String, dynamic> body) {
     try {
       _commitResult = CommitResult.fromJson(body);
@@ -107,7 +78,6 @@ class VerificationFlowController extends ChangeNotifier {
     _notify();
   }
 
-  // ------------------------------------------------------------------ //
   Future<bool> start({
     required String noBpjs,
     required String kodeFaskes,
@@ -119,15 +89,12 @@ class VerificationFlowController extends ChangeNotifier {
     _setBusy(true);
     _noBpjs = noBpjs;
 
-    // Rahasia perangkat harus sudah ada di server sebelum langkah 2. Ini
-    // upsert murah, jadi dilakukan setiap kali - lebih sederhana daripada
-    // menyimpan penanda "sudah terdaftar" yang bisa basi kalau database
-    // server di-reset. Kegagalannya tidak menghentikan alur: langkah 2 akan
-    // melaporkan DEVICE_NOT_ENROLLED dengan jelas kalau memang gagal.
-    final enrol = await _api.enrollDevice(await _attestation.enrollmentPayload());
+    final enrol =
+        await _api.enrollDevice(await _attestation.enrollmentPayload());
     enrol.when(
       ok: (_) {},
-      failure: (f) => debugPrint('pendaftaran perangkat gagal: ${f.errorCode} ${f.message}'),
+      failure: (f) => debugPrint(
+          'pendaftaran perangkat gagal: ${f.errorCode} ${f.message}'),
     );
 
     final result = await _api.startSession(
@@ -158,8 +125,6 @@ class VerificationFlowController extends ChangeNotifier {
     );
   }
 
-  /// Minta tantangan liveness. Server mengembalikan tantangan yang sama selama
-  /// masih berlaku, jadi memanggil ini berulang kali aman.
   Future<void> loadChallenge() async {
     if (!hasSession) return;
     final result = await _api.requestChallenge(_sessionId!, _sessionToken!);
@@ -169,8 +134,6 @@ class VerificationFlowController extends ChangeNotifier {
         _notify();
       },
       failure: (f) {
-        // Bukan kondisi fatal: tanpa tantangan, skor liveness memakai komponen
-        // netral 0.5, bukan lolos gratis.
         debugPrint('tantangan liveness tidak tersedia: ${f.errorCode}');
       },
     );
@@ -198,8 +161,6 @@ class VerificationFlowController extends ChangeNotifier {
           _currentStep = SessionStep.fingerprint;
           _error = null;
         } else {
-          // Bukan error protokol: tampilkan pesan server apa adanya, lengkap
-          // dengan sisa percobaan.
           _error = face.message;
         }
         _setBusy(false);
@@ -227,8 +188,10 @@ class VerificationFlowController extends ChangeNotifier {
     );
 
     if (!attestation.ok) {
-      debugPrint('attestation gagal: ${attestation.errorCode} ${attestation.detail}');
-      _fail(attestation.message ?? 'Verifikasi sidik jari gagal.', attestation.errorCode);
+      debugPrint(
+          'attestation gagal: ${attestation.errorCode} ${attestation.detail}');
+      _fail(attestation.message ?? 'Verifikasi sidik jari gagal.',
+          attestation.errorCode);
       return false;
     }
 
@@ -249,7 +212,7 @@ class VerificationFlowController extends ChangeNotifier {
         if (fp.passed) {
           _currentStep = SessionStep.review;
           _error = null;
-          // Nonce sudah dikonsumsi server; jangan simpan yang basi.
+
           _nonce = null;
         } else {
           _error = fp.message;
@@ -325,9 +288,6 @@ class VerificationFlowController extends ChangeNotifier {
     );
   }
 
-  /// Batalkan sesi di server. Fire-and-forget: kalau pengguna sudah menutup
-  /// layar, kegagalan pembatalan tidak boleh memunculkan apa pun - sesi akan
-  /// kedaluwarsa sendiri dalam 10 menit.
   Future<void> cancel() async {
     if (!hasSession || isCommitted) return;
     try {
@@ -341,7 +301,6 @@ class VerificationFlowController extends ChangeNotifier {
     _notify();
   }
 
-  // ------------------------------------------------------------------ //
   void _setBusy(bool value) {
     _busy = value;
     _notify();

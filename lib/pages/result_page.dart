@@ -8,7 +8,9 @@ class ResultPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isError = analysisResult['status'] != 'ok';
-    final String resultText = analysisResult['result'] ?? analysisResult['message'] ?? "Tidak ada data untuk ditampilkan.";
+    final String resultText = analysisResult['result'] ??
+        analysisResult['message'] ??
+        "Tidak ada data untuk ditampilkan.";
 
     return Scaffold(
       appBar: AppBar(
@@ -22,7 +24,8 @@ class ResultPage extends StatelessWidget {
             if (isError)
               Icon(Icons.error_outline, color: Colors.red.shade700, size: 48),
             if (!isError)
-              Icon(Icons.lightbulb_outline, color: Colors.green.shade700, size: 48),
+              Icon(Icons.lightbulb_outline,
+                  color: Colors.green.shade700, size: 48),
             const SizedBox(height: 16),
             Text(
               isError ? 'Terjadi Kesalahan' : 'Informasi Awal Berbasis AI',
@@ -35,10 +38,9 @@ class ResultPage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200)
-              ),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200)),
               child: SelectableText(
                 resultText,
                 style: const TextStyle(fontSize: 16, height: 1.6),

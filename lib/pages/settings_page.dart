@@ -9,16 +9,6 @@ import 'package:identicare_mobile/widgets/common/app_components.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-/// Pengaturan.
-///
-/// Ikon roda gigi sebelumnya `onPressed: () {}` - hiasan. Sekarang ia membuka
-/// halaman ini, yang juga menjadi alat diagnosis koneksi.
-///
-/// Itu bukan kebetulan. Kegagalan paling sering di aplikasi ini adalah aplikasi
-/// tidak dapat menjangkau backend, dan pesan seperti "Server tidak merespons
-/// tepat waktu" tidak memberi tahu apa pun yang bisa ditindaklanjuti: server
-/// mati? alamat salah? ponsel di jaringan seluler, bukan Wi-Fi yang sama? Uji
-/// koneksi di bawah menjawabnya secara langsung.
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
@@ -61,7 +51,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
     health.when(
       ok: (json) {
-        final checks = (json['checks'] as Map?)?.cast<String, dynamic>() ?? const {};
+        final checks =
+            (json['checks'] as Map?)?.cast<String, dynamic>() ?? const {};
         setState(() {
           _testing = false;
           _result = _ConnectionResult(
@@ -97,7 +88,8 @@ class _SettingsPageState extends State<SettingsPage> {
     await AppConfig.setOverride(_urlController.text);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Alamat server disimpan: ${AppConfig.apiBaseUrl}')),
+      SnackBar(
+          content: Text('Alamat server disimpan: ${AppConfig.apiBaseUrl}')),
     );
     _testConnection();
   }
@@ -117,7 +109,10 @@ class _SettingsPageState extends State<SettingsPage> {
         padding: const EdgeInsets.all(AppSpacing.page),
         children: [
           const AppSectionHeader(title: 'Koneksi Server'),
-          _ConnectionCard(result: _result, testing: _testing, baseUrl: AppConfig.apiBaseUrl),
+          _ConnectionCard(
+              result: _result,
+              testing: _testing,
+              baseUrl: AppConfig.apiBaseUrl),
           const SizedBox(height: AppSpacing.md),
           FilledButton.icon(
             onPressed: _testing ? null : _testConnection,
@@ -125,12 +120,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.wifi_tethering_rounded, size: AppIcons.sm),
             label: Text(_testing ? 'Menguji...' : 'Uji Koneksi'),
           ),
-
           if (kDebugMode) ...[
             const SizedBox(height: AppSpacing.xxl),
             const AppSectionHeader(title: 'Alamat Server (mode debug)'),
@@ -158,7 +153,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   Row(
                     children: [
                       Expanded(
-                        child: FilledButton(onPressed: _saveUrl, child: const Text('Simpan')),
+                        child: FilledButton(
+                            onPressed: _saveUrl, child: const Text('Simpan')),
                       ),
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
@@ -185,11 +181,9 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ],
-
           const SizedBox(height: AppSpacing.xxl),
           const AppSectionHeader(title: 'Akun'),
           _AccountCard(peserta: _peserta),
-
           const SizedBox(height: AppSpacing.xxl),
           const AppSectionHeader(title: 'Tentang'),
           Container(
@@ -211,7 +205,6 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
-
           const SizedBox(height: AppSpacing.xxl),
           OutlinedButton.icon(
             onPressed: () async {
@@ -219,7 +212,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 context: context,
                 builder: (context) => AlertDialog(
                   title: const Text('Keluar dari akun?'),
-                  content: const Text('Anda perlu masuk kembali untuk mengakses verifikasi.'),
+                  content: const Text(
+                      'Anda perlu masuk kembali untuk mengakses verifikasi.'),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
@@ -227,7 +221,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     TextButton(
                       onPressed: () => Navigator.pop(context, true),
-                      style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                      style: TextButton.styleFrom(
+                          foregroundColor: AppColors.danger),
                       child: const Text('Keluar'),
                     ),
                   ],
@@ -288,7 +283,9 @@ class _ConnectionCard extends StatelessWidget {
     final ok = result?.ok ?? false;
     final color = testing
         ? AppColors.ink500
-        : (result == null ? AppColors.ink500 : (ok ? AppColors.success : AppColors.danger));
+        : (result == null
+            ? AppColors.ink500
+            : (ok ? AppColors.success : AppColors.danger));
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -316,8 +313,11 @@ class _ConnectionCard extends StatelessWidget {
                       ? 'Menguji koneksi...'
                       : (result == null
                           ? 'Belum diuji'
-                          : (ok ? 'Server terhubung' : 'Server tidak terjangkau')),
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: color),
+                          : (ok
+                              ? 'Server terhubung'
+                              : 'Server tidak terjangkau')),
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 15, color: color),
                 ),
               ),
               if (result != null && !testing)
@@ -339,7 +339,9 @@ class _ConnectionCard extends StatelessWidget {
           if (result != null && !testing) ...[
             const Divider(height: AppSpacing.xxl),
             if (ok) ...[
-              _Check('Database', result!.mongo == 'ok' ? 'terhubung' : '${result!.mongo}',
+              _Check(
+                  'Database',
+                  result!.mongo == 'ok' ? 'terhubung' : '${result!.mongo}',
                   result!.mongo == 'ok'),
               _Check('Model wajah', result!.faceModels ?? '-',
                   result!.faceModels == 'loaded'),
@@ -348,7 +350,8 @@ class _ConnectionCard extends StatelessWidget {
             ] else ...[
               Text(
                 result!.message ?? 'Tidak diketahui',
-                style: const TextStyle(fontSize: 13, color: AppColors.ink700, height: 1.45),
+                style: const TextStyle(
+                    fontSize: 13, color: AppColors.ink700, height: 1.45),
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
@@ -360,9 +363,10 @@ class _ConnectionCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              // Penyebab yang benar-benar sering terjadi, bukan saran generik.
-              const _Hint('Pastikan backend berjalan: uvicorn app.main:app --host 0.0.0.0 --port 8000'),
-              const _Hint('Pastikan ponsel dan komputer berada di Wi-Fi yang sama.'),
+              const _Hint(
+                  'Pastikan backend berjalan: uvicorn app.main:app --host 0.0.0.0 --port 8000'),
+              const _Hint(
+                  'Pastikan ponsel dan komputer berada di Wi-Fi yang sama.'),
               const _Hint('Windows Firewall mungkin memblokir port 8000.'),
             ],
           ],
@@ -392,7 +396,8 @@ class _Check extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text(label, style: const TextStyle(fontSize: 13, color: AppColors.ink700)),
+            child: Text(label,
+                style: const TextStyle(fontSize: 13, color: AppColors.ink700)),
           ),
           Text(
             value,
@@ -421,12 +426,14 @@ class _AccountCard extends StatelessWidget {
         ),
         child: const Row(
           children: [
-            Icon(Icons.link_off_rounded, color: AppColors.ink300, size: AppIcons.lg),
+            Icon(Icons.link_off_rounded,
+                color: AppColors.ink300, size: AppIcons.lg),
             SizedBox(width: AppSpacing.lg),
             Expanded(
               child: Text(
                 'Akun belum tertaut dengan data peserta BPJS, atau server tidak terjangkau.',
-                style: TextStyle(fontSize: 13, color: AppColors.ink500, height: 1.4),
+                style: TextStyle(
+                    fontSize: 13, color: AppColors.ink500, height: 1.4),
               ),
             ),
           ],
@@ -472,7 +479,8 @@ class _AccountCard extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value, this.monospace = false});
+  const _InfoRow(
+      {required this.label, required this.value, this.monospace = false});
 
   final String label;
   final String value;
@@ -488,9 +496,9 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(label, style: const TextStyle(fontSize: 13, color: AppColors.ink500)),
+            child: Text(label,
+                style: const TextStyle(fontSize: 13, color: AppColors.ink500)),
           ),
-          // Flexible: nilai panjang membungkus, tidak meluap ke kanan.
           Flexible(
             child: Text(
               value,
@@ -522,13 +530,15 @@ class _Hint extends StatelessWidget {
         children: [
           const Padding(
             padding: EdgeInsets.only(top: 2),
-            child: Icon(Icons.info_outline_rounded, size: 13, color: AppColors.ink500),
+            child: Icon(Icons.info_outline_rounded,
+                size: 13, color: AppColors.ink500),
           ),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(fontSize: 11.5, color: AppColors.ink500, height: 1.4),
+              style: const TextStyle(
+                  fontSize: 11.5, color: AppColors.ink500, height: 1.4),
             ),
           ),
         ],

@@ -21,7 +21,8 @@ class HospitalInfoPage extends StatelessWidget {
             pinned: true,
             stretch: true,
             flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              titlePadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               title: const Text(
                 'RS IdentiCare Sehat',
                 style: TextStyle(
@@ -48,7 +49,8 @@ class HospitalInfoPage extends StatelessWidget {
                   title: 'Alamat',
                   subtitle: 'Jl. Kesehatan No. 123, Jakarta Sehat, Indonesia',
                   actionWidget: OutlinedButton(
-                    onPressed: () => _launchURL('https://maps.google.com/?q=Jl. Kesehatan No. 123, Jakarta'),
+                    onPressed: () => _launchURL(
+                        'https://maps.google.com/?q=Jl. Kesehatan No. 123, Jakarta'),
                     child: const Text('Lihat Peta'),
                   ),
                 ),
@@ -78,17 +80,17 @@ class HospitalInfoPage extends StatelessWidget {
                 _buildSectionTitle(context, 'Poli Tersedia'),
                 const SizedBox(height: 16),
                 _buildPoliChips(),
-                 const SizedBox(height: 32),
+                const SizedBox(height: 32),
                 _buildSectionTitle(context, 'Jam Kunjungan Pasien'),
-                 const SizedBox(height: 16),
-                 _buildInfoCard(
+                const SizedBox(height: 16),
+                _buildInfoCard(
                   context,
                   icon: Icons.family_restroom_outlined,
                   title: 'Pagi',
                   subtitle: '11:00 - 13:00 WIB',
                 ),
-                 const SizedBox(height: 12),
-                 _buildInfoCard(
+                const SizedBox(height: 12),
+                _buildInfoCard(
                   context,
                   icon: Icons.nightlife_outlined,
                   title: 'Sore',
@@ -112,24 +114,25 @@ class HospitalInfoPage extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoCard(BuildContext context, {required IconData icon, required String title, required String subtitle, Widget? actionWidget}) {
+  Widget _buildInfoCard(BuildContext context,
+      {required IconData icon,
+      required String title,
+      required String subtitle,
+      Widget? actionWidget}) {
     return Card(
       elevation: 2,
-      shadowColor: Colors.grey.withOpacity(0.1),
+      shadowColor: Colors.grey.withValues(alpha: 0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        // Sebelumnya ikon, teks dan tombol berdesakan dalam satu Row: alamat
-        // yang membungkus tiga baris menekan tombol sampai hampir tanpa ruang.
-        // Tombol kini pindah ke barisnya sendiri, selebar isi, sehingga jarak
-        // tetap wajar berapa pun panjang teksnya.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, color: Theme.of(context).colorScheme.primary, size: 28),
+                Icon(icon,
+                    color: Theme.of(context).colorScheme.primary, size: 28),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -137,12 +140,16 @@ class HospitalInfoPage extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         subtitle,
-                        style: TextStyle(color: Colors.grey.shade700, fontSize: 15, height: 1.35),
+                        style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontSize: 15,
+                            height: 1.35),
                       ),
                     ],
                   ),
@@ -158,7 +165,7 @@ class HospitalInfoPage extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildFacilitiesGrid() {
     final facilities = [
       {'name': 'IGD 24 Jam', 'icon': Icons.emergency_outlined},
@@ -188,9 +195,12 @@ class HospitalInfoPage extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(facilities[index]['icon'] as IconData, color: Theme.of(context).colorScheme.primary),
+              Icon(facilities[index]['icon'] as IconData,
+                  color: Theme.of(context).colorScheme.primary),
               const SizedBox(width: 8),
-              Flexible(child: Text(facilities[index]['name'] as String, style: const TextStyle(fontWeight: FontWeight.w600))),
+              Flexible(
+                  child: Text(facilities[index]['name'] as String,
+                      style: const TextStyle(fontWeight: FontWeight.w600))),
             ],
           ),
         );
@@ -199,17 +209,29 @@ class HospitalInfoPage extends StatelessWidget {
   }
 
   Widget _buildPoliChips() {
-    final poliList = ['Umum', 'Gigi', 'Jantung', 'Anak', 'Kulit', 'Mata', 'THT'];
+    final poliList = [
+      'Umum',
+      'Gigi',
+      'Jantung',
+      'Anak',
+      'Kulit',
+      'Mata',
+      'THT'
+    ];
     return Wrap(
       spacing: 8.0,
       runSpacing: 8.0,
-      children: poliList.map((poli) => Chip(
-        label: Text(poli),
-        backgroundColor: Colors.blue.shade50,
-        labelStyle: TextStyle(color: Colors.blue.shade800, fontWeight: FontWeight.w600),
-        side: BorderSide(color: Colors.blue.shade100),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      )).toList(),
+      children: poliList
+          .map((poli) => Chip(
+                label: Text(poli),
+                backgroundColor: Colors.blue.shade50,
+                labelStyle: TextStyle(
+                    color: Colors.blue.shade800, fontWeight: FontWeight.w600),
+                side: BorderSide(color: Colors.blue.shade100),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ))
+          .toList(),
     );
   }
 }

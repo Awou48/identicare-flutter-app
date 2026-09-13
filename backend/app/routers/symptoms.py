@@ -1,15 +1,3 @@
-"""Legacy compatibility for the existing Flutter symptom checker.
-
-lib/services/api_service.dart already POSTs {"gejala": [...]} to /analyze_symptoms
-on a hardcoded LAN IP. That server no longer exists anywhere in the project, so
-the feature is dead. Re-hosting the same contract here revives it for the cost of
-one route, and moves the 42 hardcoded symptoms in symptom_checker_page.dart:19-28
-onto the server where the model can change them without an app release.
-
-Backed by Ollama if it is running locally; falls back to a transparent rule-based
-response otherwise, clearly labelled as such rather than pretending to be AI.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -23,14 +11,47 @@ log = logging.getLogger(__name__)
 router = APIRouter(tags=["symptoms"])
 
 SYMPTOM_CATALOG = [
-    "Sakit kepala", "Pusing", "Migrain", "Kehilangan keseimbangan", "Batuk", "Sesak Napas",
-    "Pilek", "Nyeri dada saat bernapas", "Mual", "Muntah", "Diare", "Sakit perut", "Sembelit",
-    "Nafsu makan menurun", "Detak jantung tidak teratur", "Nyeri dada", "Tekanan darah tinggi",
-    "Mudah lelah", "Demam", "Menggigil", "Berkeringat berlebihan", "Tubuh terasa lemas",
-    "Nyeri otot", "Sendi kaku", "Bengkak", "Sulit bergerak (sendi/otot)", "Mata merah",
-    "Penglihatan kabur", "Bengkak (mata)", "Mata sulit fokus/bergerak normal",
-    "Sakit tenggorokan", "Hidung tersumbat", "Gangguan pendengaran", "Sakit telinga", "Ruam",
-    "Gatal-gatal", "Luka tidak sembuh", "Kulit kering", "Stres", "Cemas", "Sulit tidur",
+    "Sakit kepala",
+    "Pusing",
+    "Migrain",
+    "Kehilangan keseimbangan",
+    "Batuk",
+    "Sesak Napas",
+    "Pilek",
+    "Nyeri dada saat bernapas",
+    "Mual",
+    "Muntah",
+    "Diare",
+    "Sakit perut",
+    "Sembelit",
+    "Nafsu makan menurun",
+    "Detak jantung tidak teratur",
+    "Nyeri dada",
+    "Tekanan darah tinggi",
+    "Mudah lelah",
+    "Demam",
+    "Menggigil",
+    "Berkeringat berlebihan",
+    "Tubuh terasa lemas",
+    "Nyeri otot",
+    "Sendi kaku",
+    "Bengkak",
+    "Sulit bergerak (sendi/otot)",
+    "Mata merah",
+    "Penglihatan kabur",
+    "Bengkak (mata)",
+    "Mata sulit fokus/bergerak normal",
+    "Sakit tenggorokan",
+    "Hidung tersumbat",
+    "Gangguan pendengaran",
+    "Sakit telinga",
+    "Ruam",
+    "Gatal-gatal",
+    "Luka tidak sembuh",
+    "Kulit kering",
+    "Stres",
+    "Cemas",
+    "Sulit tidur",
     "Mudah marah",
 ]
 
@@ -84,8 +105,9 @@ async def _analyse(gejala: list[str], settings) -> dict:
 
 
 def _fallback(gejala: list[str]) -> str:
-    """Honest fallback. Says plainly that no AI model was involved rather than
-    dressing a keyword match up as analysis."""
+    """Honest fallback. Says plainly that no AI model was involved rather than dressing a keyword match up as
+    analysis.
+    """
     urgent = {"Nyeri dada", "Sesak Napas", "Detak jantung tidak teratur", "Nyeri dada saat bernapas"}
     hits = [g for g in gejala if g in urgent]
     lines = [f"Gejala yang dilaporkan: {', '.join(gejala)}."]

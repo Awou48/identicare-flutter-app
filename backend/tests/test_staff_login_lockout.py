@@ -1,11 +1,3 @@
-"""Staff login brute-force lockout. Live-DB; skips without one.
-
-The staff login form is rendered on the participant's own phone (the override
-flow), so it is exposed to exactly the person motivated to guess a nurse's
-password. Five failures per NIP must lock that NIP - and an unknown NIP must
-be counted the same way, so the lockout cannot confirm which NIPs exist.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -47,8 +39,6 @@ def account():
             "last_login": None,
         }
     ).inserted_id
-    # A successful login signs a token with the KEK, which the app lifespan
-    # normally loads.
     database._kek = crypto.load_kek(settings.kek_file)
     yield settings
     database._kek = None

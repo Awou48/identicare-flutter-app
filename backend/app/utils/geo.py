@@ -1,5 +1,3 @@
-"""Geo helpers. GeoJSON coordinates are always [longitude, latitude]."""
-
 from __future__ import annotations
 
 import math
@@ -17,12 +15,7 @@ def haversine_km(a: list[float] | tuple[float, float], b: list[float] | tuple[fl
 
 
 def implied_speed_kmh(distance_km: float, minutes: float) -> float:
-    """Speed needed to cover the distance in the elapsed time.
-
-    Guards against a divide-by-zero when two claims land in the same minute: that
-    case is infinitely fast, which is precisely the fraud signal, so it returns
-    infinity rather than crashing or silently reporting 0.
-    """
+    """Speed needed to cover the distance in the elapsed time."""
     if minutes <= 0:
         return float("inf") if distance_km > 0 else 0.0
     return distance_km / (minutes / 60.0)

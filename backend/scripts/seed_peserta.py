@@ -1,18 +1,3 @@
-"""Seed demo facilities and BPJS participants.
-
-    python scripts/seed_peserta.py
-    python scripts/seed_peserta.py --reset      # delete seeded docs first
-
-Every peserta gets an encrypted NIK, and most get a biometric template so the
-encryption and rotation paths are exercised before any real face data exists.
-
-IMPORTANT: the seeded embeddings are RANDOM unit vectors, not faces. They prove
-the storage, encryption and 1:N sweep work; they cannot match a real photo. Real
-templates arrive in Step 3 via POST /api/v1/enrollment/face. Seeded documents are
-tagged {"seeded": true} so --reset can find them and so nobody mistakes a random
-vector for an enrolment.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -23,7 +8,6 @@ import numpy as np
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
-import _bootstrap_path  # noqa: F401  (side effect: sys.path)
 from app.config import get_settings
 from app.security import crypto, rotation
 
@@ -59,7 +43,6 @@ FACILITIES = [
         "geo": {"type": "Point", "coordinates": [106.7970, -6.2410]},
     },
     {
-        # Deliberately far away: makes IMPOSSIBLE_TRAVEL demonstrable.
         "kode_faskes": "3471P002",
         "nama": "Puskesmas Wamena",
         "jenis": "PUSKESMAS",
@@ -71,7 +54,6 @@ FACILITIES = [
     },
 ]
 
-# name, NIK, no_bpjs, sex, birth, kelas, jenis, status, tunggakan
 PESERTA_SEED = [
     ("Marcel Iliantino", "3174050412010001", "0001234567890", "L", "2001-12-04", 1, "PPU", "AKTIF", 0),
     ("Siti Nurhaliza", "3174054503920002", "0001234567891", "P", "1992-03-05", 2, "PBPU", "AKTIF", 0),
@@ -134,13 +116,10 @@ def main() -> int:
 
     now = datetime.now(UTC)
 
-    # --- facilities -------------------------------------------------------- #
     faskes_ids: dict[str, object] = {}
     for fac in FACILITIES:
         doc = {**fac, "active": True, "seeded": True}
-        db.facilities.update_one(
-            {"kode_faskes": fac["kode_faskes"]}, {"$set": doc}, upsert=True
-        )
+        db.facilities.update_one({"kode_faskes": fac["kode_faskes"]}, {"$set": doc}, upsert=True)
         found = db.facilities.find_one({"kode_faskes": fac["kode_faskes"]}, {"_id": 1})
         faskes_ids[fac["kode_faskes"]] = found["_id"]
     print(f"[+] facilities: {len(FACILITIES)} upserted")
@@ -148,13 +127,10 @@ def main() -> int:
     default_faskes_kode = "0110P001"
     default_faskes = db.facilities.find_one({"kode_faskes": default_faskes_kode})
 
-    # --- peserta ----------------------------------------------------------- #
     rng = np.random.default_rng(20260908)
     inserted = updated = templates = 0
 
-    for i, (nama, nik, no_bpjs, sex, birth, kelas, jenis, status, tunggakan) in enumerate(
-        PESERTA_SEED
-    ):
+    for i, (nama, nik, no_bpjs, sex, birth, kelas, jenis, status, tunggakan) in enumerate(PESERTA_SEED):
         doc = {
             "no_bpjs": no_bpjs,
             "nik_hash": crypto.hash_nik(nik, settings.nik_pepper),
@@ -194,7 +170,6 @@ def main() -> int:
             updated += 1
         else:
             doc["created_at"] = now
-            # AAD binds the encrypted NIK to the document that owns it.
             result = db.peserta.insert_one(doc)
             peserta_id = result.inserted_id
             inserted += 1
@@ -205,8 +180,6 @@ def main() -> int:
             {"$set": {"nik_enc": crypto.encrypt_blob(kek, nik.encode("utf-8"), nik_aad)}},
         )
 
-        # --- placeholder biometric template -------------------------------- #
-        # Random unit vector. NOT a face. Exercises encrypt -> rotate -> store.
         if args.no_biometrics or i >= 15:
             continue
 
@@ -257,7 +230,6 @@ def main() -> int:
     print(f"[+] peserta: {inserted} inserted, {updated} updated")
     print(f"[+] biometric_templates: {templates} placeholder templates")
 
-    # --- verify the round trip on one document ----------------------------- #
     sample = db.peserta.find_one({"no_bpjs": PESERTA_SEED[0][2]})
     aad = crypto.build_aad(sample["_id"], "nik", 1)
     recovered = crypto.decrypt_blob(kek, sample["nik_enc"], aad).decode("utf-8")

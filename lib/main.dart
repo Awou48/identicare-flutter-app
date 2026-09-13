@@ -18,16 +18,9 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // history_page.dart dan profile_page.dart memanggil DateFormat(..., 'id_ID').
-  // Tanpa inisialisasi locale ini, keduanya melempar LocaleDataException.
   await initializeDateFormatting('id_ID', null);
 
-  // Base URL API: --dart-define, atau override debug dari SharedPreferences.
   await AppConfig.load();
-
-  // CATATAN: di sini dulu ada `await AuthService().signOut();` yang memaksa
-  // logout setiap cold start. Itu sisa kode development dan akan terlihat
-  // seperti bug saat demo.
 
   runApp(const MyApp());
 }
@@ -45,14 +38,13 @@ class MyApp extends StatelessWidget {
           dispose: (_, client) => client.dispose(),
         ),
         ProxyProvider<IdenticareApiClient, VerificationApiService>(
-          update: (_, client, previous) => previous ?? VerificationApiService(client),
+          update: (_, client, previous) =>
+              previous ?? VerificationApiService(client),
         ),
       ],
       child: MaterialApp(
         title: 'IdentiCare',
         theme: buildAppTheme(),
-        // Seluruh UI berbahasa Indonesia; ini membuat widget bawaan Material
-        // (pemilih tanggal, dialog, tooltip) ikut berbahasa Indonesia.
         locale: const Locale('id', 'ID'),
         supportedLocales: const [Locale('id', 'ID'), Locale('en', 'US')],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,

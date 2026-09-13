@@ -1,16 +1,3 @@
-"""Seed artikel kesehatan.
-
-    python scripts/seed_articles.py
-    python scripts/seed_articles.py --reset
-
-Menulis langsung ke MongoDB, jadi tidak perlu API berjalan. Semua dokumen
-ditandai seeded: true supaya --reset dapat membersihkannya tanpa menyentuh
-artikel asli.
-
-Isinya sengaja berputar pada BPJS, verifikasi identitas, dan pencegahan fraud -
-bukan artikel kesehatan generik - karena itulah konteks aplikasi ini.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -21,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
-import _bootstrap_path  # noqa: F401  (side effect: sys.path)
 from app.config import get_settings
 
 ARTICLES = [
@@ -250,8 +236,6 @@ def main() -> int:
             db.articles.update_one({"_id": existing["_id"]}, {"$set": doc})
             updated += 1
         else:
-            # Tanggal terbit dimundurkan bertahap supaya urutan "terbaru" terlihat
-            # masuk akal alih-alih semuanya terbit pada detik yang sama.
             doc["published_at"] = now - timedelta(days=i * 3)
             doc["views"] = 0
             db.articles.insert_one(doc)

@@ -1,8 +1,3 @@
-/// Model sesi verifikasi. Cerminan dari state machine di server.
-///
-/// PENTING: klien tidak pernah memajukan langkahnya sendiri. [SessionStep]
-/// hanya boleh diisi dari respons server. Kalau klien yang memutuskan, penyerang
-/// cukup tidak memanggil endpoint liveness dan langsung lompat ke langkah 2.
 library;
 
 enum SessionStep {
@@ -13,10 +8,8 @@ enum SessionStep {
 
   const SessionStep(this.wire, this.label);
 
-  /// Nilai yang dipakai di JSON API.
   final String wire;
 
-  /// Judul yang ditampilkan di UI.
   final String label;
 
   static SessionStep? fromWire(String? value) {
@@ -80,16 +73,12 @@ class PesertaPreview {
 class VerificationSession {
   final String sessionId;
 
-  /// Bearer buram untuk seluruh alur. Jangan pernah ditulis ke log.
   final String sessionToken;
 
   final DateTime expiresAt;
   final List<String> requiredSteps;
   final SessionStep? currentStep;
 
-  /// Nonce sekali pakai untuk langkah sidik jari. Server menerbitkan yang baru
-  /// setiap kali langkah wajah lolos, karena TTL-nya jauh lebih pendek
-  /// daripada TTL sesi.
   final String? nonce;
   final DateTime? nonceExpiresAt;
 
@@ -111,15 +100,16 @@ class VerificationSession {
       sessionId: json['session_id'] as String,
       sessionToken: json['session_token'] as String,
       expiresAt: DateTime.parse(json['expires_at'] as String),
-      requiredSteps:
-          (json['required_steps'] as List?)?.cast<String>() ?? const ['face', 'fingerprint', 'review'],
+      requiredSteps: (json['required_steps'] as List?)?.cast<String>() ??
+          const ['face', 'fingerprint', 'review'],
       currentStep: SessionStep.fromWire(json['current_step'] as String?),
       nonce: json['nonce'] as String?,
       nonceExpiresAt: json['nonce_expires_at'] != null
           ? DateTime.parse(json['nonce_expires_at'] as String)
           : null,
       pesertaPreview: json['peserta_preview'] != null
-          ? PesertaPreview.fromJson(json['peserta_preview'] as Map<String, dynamic>)
+          ? PesertaPreview.fromJson(
+              json['peserta_preview'] as Map<String, dynamic>)
           : null,
     );
   }
@@ -128,7 +118,6 @@ class VerificationSession {
   bool get isExpired => remaining.isNegative;
 }
 
-/// Status sesi saat di-resume (GET /verification/sessions/{id}).
 class SessionState {
   final String sessionId;
   final SessionStatus status;

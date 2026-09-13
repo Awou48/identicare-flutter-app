@@ -2,20 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-/// Autentikasi Firebase.
-///
-/// Keputusan database hibrida: Firebase Auth tetap menjadi penyedia identitas
-/// dan Firestore tetap menyimpan `riwayat_konsultasi`, sementara seluruh data
-/// BPJS, template biometrik, dan log verifikasi ada di MongoDB di belakang API
-/// Python. `firebase_uid` adalah satu-satunya jahitan antara keduanya.
 class AuthService with ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   AuthService() {
-    // Sebelumnya kelas ini meng-extend ChangeNotifier tetapi tidak pernah
-    // memberi notifikasi, sehingga Provider hanya berfungsi sebagai service
-    // locator dan perubahan status login tidak pernah dipropagasi.
     _auth.authStateChanges().listen((_) => notifyListeners());
   }
 
@@ -30,10 +21,6 @@ class AuthService with ChangeNotifier {
     return _firestore.collection('users').doc(currentUser!.uid).snapshots();
   }
 
-  /// Token ID untuk dikirim ke backend Python sebagai `Authorization: Bearer`.
-  ///
-  /// Token Firebase berumur satu jam; SDK menyegarkannya sendiri, jadi ini aman
-  /// dipanggil sebelum setiap permintaan.
   Future<String?> getIdToken({bool forceRefresh = false}) async {
     final user = _auth.currentUser;
     if (user == null) return null;
@@ -60,12 +47,8 @@ class AuthService with ChangeNotifier {
 
       await _firestore.collection('users').doc(userCredential.user!.uid).set({
         'email': email,
-        // Dulu di sini tertulis 'Marcel Sebastian' untuk SETIAP akun baru.
-        // Identitas adalah inti produk ini; nama tidak boleh dikarang.
         'displayName': displayName.trim(),
         'phoneNumber': phoneNumber,
-        // Menautkan akun ke peserta BPJS di MongoDB. Tanpa ini, riwayat
-        // verifikasi tidak dapat dicari untuk pengguna ini.
         'noBpjs': noBpjs?.trim() ?? '',
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -76,7 +59,8 @@ class AuthService with ChangeNotifier {
     }
   }
 
-  Future<String?> signIn({required String email, required String password}) async {
+  Future<String?> signIn(
+      {required String email, required String password}) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
       notifyListeners();
@@ -91,14 +75,6 @@ class AuthService with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Buat dokumen profil untuk akun yang tidak memilikinya.
-  ///
-  /// Ini terjadi kalau akun dibuat di luar alur pendaftaran aplikasi, atau
-  /// penulisan Firestore-nya gagal saat mendaftar. Halaman profil dulu hanya
-  /// berkata "Silakan coba login ulang" - yang tidak menolong, karena login
-  /// ulang tidak membuat dokumen. Sekarang profil dibuat dari data akun
-  /// Firebase Auth. displayName memakai bagian lokal email sebagai cadangan,
-  /// karena aturan Firestore menolak displayName kosong.
   Future<bool> ensureProfileDocument() async {
     final user = _auth.currentUser;
     if (user == null) return false;
@@ -126,7 +102,6 @@ class AuthService with ChangeNotifier {
     }
   }
 
-  /// Nomor BPJS pengguna, dibutuhkan untuk memulai sesi verifikasi.
   Future<String?> getNoBpjs() async {
     final user = _auth.currentUser;
     if (user == null) return null;

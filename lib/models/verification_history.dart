@@ -1,7 +1,3 @@
-/// Riwayat verifikasi: tanggal, metode, status, lokasi.
-///
-/// Ini yang menggantikan koleksi hardcoded di aplikasi lama. Sumbernya MongoDB
-/// lewat API Python, terpisah dari `riwayat_konsultasi` yang tetap di Firestore.
 library;
 
 class VerificationHistoryEntry {
@@ -9,10 +5,8 @@ class VerificationHistoryEntry {
   final String? receiptNo;
   final DateTime tanggal;
 
-  /// ['wajah', 'sidik_jari']
   final List<String> metode;
 
-  /// APPROVED | REVIEW | REJECTED
   final String status;
 
   final String? faskes;
@@ -35,7 +29,8 @@ class VerificationHistoryEntry {
   });
 
   factory VerificationHistoryEntry.fromJson(Map<String, dynamic> json) {
-    final lokasi = (json['lokasi'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final lokasi =
+        (json['lokasi'] as Map?)?.cast<String, dynamic>() ?? const {};
     final skor = (json['skor'] as Map?)?.cast<String, dynamic>() ?? const {};
     return VerificationHistoryEntry(
       sessionId: json['session_id'] as String,
@@ -70,8 +65,6 @@ class VerificationHistoryEntry {
 class VerificationHistoryPage {
   final List<VerificationHistoryEntry> items;
 
-  /// Kursor untuk halaman berikutnya. Bukan offset: paging berbasis offset akan
-  /// melewatkan atau menggandakan baris kalau ada data baru masuk di tengah.
   final String? nextCursor;
   final bool hasMore;
 
@@ -84,15 +77,14 @@ class VerificationHistoryPage {
   factory VerificationHistoryPage.fromJson(Map<String, dynamic> json) =>
       VerificationHistoryPage(
         items: ((json['items'] as List?) ?? const [])
-            .map((e) =>
-                VerificationHistoryEntry.fromJson((e as Map).cast<String, dynamic>()))
+            .map((e) => VerificationHistoryEntry.fromJson(
+                (e as Map).cast<String, dynamic>()))
             .toList(),
         nextCursor: json['next_cursor'] as String?,
         hasMore: json['has_more'] as bool? ?? false,
       );
 }
 
-/// Satu baris jejak audit di halaman detail.
 class VerificationEvent {
   final int seq;
   final String step;
@@ -114,7 +106,8 @@ class VerificationEvent {
     this.latencyMs,
   });
 
-  factory VerificationEvent.fromJson(Map<String, dynamic> json) => VerificationEvent(
+  factory VerificationEvent.fromJson(Map<String, dynamic> json) =>
+      VerificationEvent(
         seq: (json['seq'] as num).toInt(),
         step: json['step'] as String,
         outcome: json['outcome'] as String,

@@ -1,20 +1,9 @@
-"""Generate the KEK and derive the rotation matrix.
-
-    python scripts/gen_keys.py            # refuses to clobber an existing KEK
-    python scripts/gen_keys.py --force    # only if no templates exist yet
-
-Losing keys/kek.bin makes every stored biometric template permanently unreadable.
-Back it up out of band; it must not live in the same place as a database backup,
-or the two together undo the whole scheme.
-"""
-
 from __future__ import annotations
 
 import argparse
 import secrets
 import sys
 
-import _bootstrap_path  # noqa: F401  (side effect: sys.path)
 from app.config import get_settings
 from app.security import crypto, rotation
 
@@ -43,15 +32,14 @@ def main() -> int:
         kek_path.write_bytes(kek)
         print(f"[+] KEK written to {kek_path} ({len(kek)} bytes)")
 
-    # Deterministic from the KEK, so regenerating with the same KEK reproduces
-    # the identical matrix and previously stored search vectors stay valid.
-    print(f"[*] Deriving {settings.face_embedding_dim}x{settings.face_embedding_dim} "
-          "orthogonal rotation from the KEK (HKDF-seeded QR)...")
+    print(
+        f"[*] Deriving {settings.face_embedding_dim}x{settings.face_embedding_dim} "
+        "orthogonal rotation from the KEK (HKDF-seeded QR)..."
+    )
     matrix = rotation.derive_rotation(kek, dim=settings.face_embedding_dim)
     rotation.save_rotation(matrix, rot_path)
     print(f"[+] Rotation matrix written to {rot_path}")
 
-    # Sanity check: orthogonality is the entire basis of the search index.
     import numpy as np
 
     identity_err = float(np.abs(matrix @ matrix.T - np.eye(matrix.shape[0])).max())

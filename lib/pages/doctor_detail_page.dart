@@ -3,12 +3,6 @@ import 'package:identicare_mobile/theme/app_theme.dart';
 import 'package:identicare_mobile/widgets/common/app_components.dart';
 import 'package:intl/intl.dart';
 
-/// Detail dokter dan pemilihan jadwal.
-///
-/// Sebelumnya StatelessWidget dengan chip `selected: false` dan
-/// `onSelected: (_) {}` - jadwalnya terlihat bisa dipilih tetapi tidak
-/// merespons sentuhan sama sekali. Sekarang stateful: tanggal dan jam
-/// benar-benar terpilih, dan tombolnya nonaktif sampai keduanya dipilih.
 class DoctorDetailPage extends StatefulWidget {
   const DoctorDetailPage({super.key, required this.doctor});
 
@@ -29,24 +23,23 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
   void initState() {
     super.initState();
     final today = DateTime.now();
-    // Tujuh hari ke depan, dihitung dari hari ini - bukan tanggal hardcoded
-    // yang akan basi dalam seminggu.
+
     _days = List.generate(
       7,
-      (i) => DateTime(today.year, today.month, today.day).add(Duration(days: i)),
+      (i) =>
+          DateTime(today.year, today.month, today.day).add(Duration(days: i)),
     );
     _selectedDay = _days.first;
   }
 
   bool get _canSubmit => _selectedDay != null && _selectedSlot != null;
 
-  /// Slot di masa lalu pada hari ini tidak boleh dipilih. Tanpa cek ini,
-  /// pengguna bisa memesan jam 09:00 pada pukul 15:00.
   bool _slotAvailable(String slot) {
     final day = _selectedDay;
     if (day == null) return false;
     final now = DateTime.now();
-    final isToday = day.year == now.year && day.month == now.month && day.day == now.day;
+    final isToday =
+        day.year == now.year && day.month == now.month && day.day == now.day;
     if (!isToday) return true;
     final hour = int.parse(slot.split(':').first);
     return hour > now.hour;
@@ -57,7 +50,8 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        icon: const Icon(Icons.event_busy_rounded, color: AppColors.warning, size: 40),
+        icon: const Icon(Icons.event_busy_rounded,
+            color: AppColors.warning, size: 40),
         title: const Text('Belum dapat diproses'),
         content: Text(
           'Anda memilih $day pukul $_selectedSlot dengan ${widget.doctor['name']}.\n\n'
@@ -98,7 +92,8 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: _days.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(width: AppSpacing.sm),
                     itemBuilder: (context, index) => _dayChip(_days[index]),
                   ),
                 ),
@@ -124,8 +119,6 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.page),
           child: FilledButton(
-            // Nonaktif sampai pilihan lengkap: tombol yang bisa ditekan tanpa
-            // pilihan apa pun hanya menghasilkan kebingungan.
             onPressed: _canSubmit ? _submit : null,
             child: const Text('Buat Janji Temu'),
           ),
@@ -145,7 +138,10 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
             radius: 40,
             backgroundColor: AppColors.brandSoft,
             child: Text(
-              name.replaceAll(RegExp(r'^Dr\.?\s*'), '').substring(0, 2).toUpperCase(),
+              name
+                  .replaceAll(RegExp(r'^Dr\.?\s*'), '')
+                  .substring(0, 2)
+                  .toUpperCase(),
               style: const TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
@@ -160,7 +156,8 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 18),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -170,11 +167,13 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
                 const SizedBox(height: AppSpacing.sm),
                 Row(
                   children: [
-                    const Icon(Icons.star_rounded, color: AppColors.warning, size: AppIcons.sm),
+                    const Icon(Icons.star_rounded,
+                        color: AppColors.warning, size: AppIcons.sm),
                     const SizedBox(width: 4),
                     Text(
                       '${doctor['rating']}',
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 13.5),
                     ),
                   ],
                 ),
@@ -194,7 +193,7 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
     return GestureDetector(
       onTap: () => setState(() {
         _selectedDay = day;
-        // Slot yang dipilih bisa jadi sudah lewat pada tanggal baru.
+
         if (_selectedSlot != null && !_slotAvailable(_selectedSlot!)) {
           _selectedSlot = null;
         }
@@ -206,7 +205,8 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
         decoration: BoxDecoration(
           color: selected ? AppColors.brand : AppColors.white,
           borderRadius: AppRadius.smAll,
-          border: Border.all(color: selected ? AppColors.brand : AppColors.ink300),
+          border:
+              Border.all(color: selected ? AppColors.brand : AppColors.ink300),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -240,7 +240,8 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
     return ChoiceChip(
       label: Text(slot),
       selected: selected,
-      onSelected: available ? (_) => setState(() => _selectedSlot = slot) : null,
+      onSelected:
+          available ? (_) => setState(() => _selectedSlot = slot) : null,
       showCheckmark: false,
       labelStyle: TextStyle(
         fontWeight: FontWeight.w600,
@@ -249,7 +250,8 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
             : (selected ? AppColors.brandDark : AppColors.ink900),
       ),
       side: BorderSide(color: selected ? AppColors.brand : AppColors.ink300),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg, vertical: AppSpacing.md),
     );
   }
 }

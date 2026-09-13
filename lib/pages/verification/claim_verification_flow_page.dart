@@ -15,11 +15,6 @@ import 'package:identicare_mobile/state/verification_flow_controller.dart';
 import 'package:identicare_mobile/widgets/verification/step_progress_indicator.dart';
 import 'package:provider/provider.dart';
 
-/// Cangkang alur verifikasi klaim BPJS 4 langkah.
-///
-/// Memakai [IndexedStack], BUKAN PageView: pengguna tidak boleh bisa menggeser
-/// mundur melewati langkah biometrik yang sudah lolos. Indeksnya digerakkan oleh
-/// `controller.currentStep`, yang hanya diisi dari respons server.
 class ClaimVerificationFlowPage extends StatefulWidget {
   const ClaimVerificationFlowPage({
     super.key,
@@ -36,9 +31,6 @@ class ClaimVerificationFlowPage extends StatefulWidget {
   final String jenisLayanan;
   final int estimasiBiaya;
 
-  /// Alur ini butuh kamera DAN sensor sidik jari asli. `local_auth` tidak punya
-  /// implementasi web, dan `camera` tidak punya implementasi desktop - keduanya
-  /// akan melempar MissingPluginException di tengah alur, bukan saat build.
   static bool get isSupportedPlatform {
     if (kIsWeb) return false;
     try {
@@ -49,7 +41,8 @@ class ClaimVerificationFlowPage extends StatefulWidget {
   }
 
   @override
-  State<ClaimVerificationFlowPage> createState() => _ClaimVerificationFlowPageState();
+  State<ClaimVerificationFlowPage> createState() =>
+      _ClaimVerificationFlowPageState();
 }
 
 class _ClaimVerificationFlowPageState extends State<ClaimVerificationFlowPage> {
@@ -110,7 +103,6 @@ class _ClaimVerificationFlowPageState extends State<ClaimVerificationFlowPage> {
     );
 
     if (leave == true) {
-      // Fire-and-forget: sesi juga akan kedaluwarsa sendiri di server.
       unawaited(controller.cancel());
       return true;
     }
@@ -125,8 +117,9 @@ class _ClaimVerificationFlowPageState extends State<ClaimVerificationFlowPage> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
+        final navigator = Navigator.of(context);
         if (await _confirmExit() && mounted) {
-          Navigator.of(context).pop();
+          navigator.pop();
         }
       },
       child: Scaffold(
@@ -178,9 +171,7 @@ class _ClaimVerificationFlowPageState extends State<ClaimVerificationFlowPage> {
             context,
             MaterialPageRoute(builder: (_) => const BiometricEnrollmentPage()),
           );
-          // Kembali dari pendaftaran yang berhasil: langsung coba mulai lagi,
-          // supaya pengguna tidak perlu menekan tombol kedua untuk sesuatu yang
-          // sudah jelas ingin mereka lakukan.
+
           if (done == true && mounted) _retry();
         },
       );
@@ -206,12 +197,6 @@ class _ClaimVerificationFlowPageState extends State<ClaimVerificationFlowPage> {
   }
 }
 
-/// Layar kegagalan pembuka alur.
-///
-/// Dulu ini selalu menampilkan pesan yang sama plus "Coba Lagi", termasuk untuk
-/// BIOMETRIC_NOT_ENROLLED - padahal mencoba lagi tidak akan pernah berhasil
-/// sampai penggunanya mendaftar, dan tidak ada satu pun cara di aplikasi untuk
-/// melakukannya. Tombolnya kini mengikuti penyebabnya.
 class _StartFailure extends StatelessWidget {
   const _StartFailure({
     required this.message,
@@ -273,16 +258,14 @@ class _StartFailure extends StatelessWidget {
               style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 24),
-            // Tombolnya mengikuti penyebabnya. "Coba Lagi" untuk akun yang belum
-            // tertaut tidak pernah bisa berhasil - yang dibutuhkan adalah
-            // tindakan, bukan pengulangan.
             if (needsBpjsLink)
               FilledButton.icon(
                 onPressed: onLink,
                 icon: const Icon(Icons.link_rounded),
                 label: const Text('Tautkan Nomor BPJS'),
                 style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 ),
               )
             else if (needsEnrollment)
@@ -291,7 +274,8 @@ class _StartFailure extends StatelessWidget {
                 icon: const Icon(Icons.how_to_reg_rounded),
                 label: const Text('Daftarkan Biometrik Sekarang'),
                 style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 ),
               )
             else

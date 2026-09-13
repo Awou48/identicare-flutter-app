@@ -6,11 +6,6 @@ import 'package:identicare_mobile/widgets/verification/status_badge.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-/// Langkah 3 - Periksa Ulang Data.
-///
-/// Ini titik pertama alur yang menampilkan data peserta sebenarnya, dan hanya
-/// setelah KEDUA faktor biometrik lolos. Sebelum itu server hanya mengirim versi
-/// bertopeng, supaya menebak nomor BPJS tidak bisa membocorkan data siapa pun.
 class Step3ReviewDataPage extends StatefulWidget {
   const Step3ReviewDataPage({super.key});
 
@@ -26,16 +21,14 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
   Widget build(BuildContext context) {
     final controller = context.watch<VerificationFlowController>();
 
-    // Data baru diambil ketika langkah ini benar-benar aktif: IndexedStack
-    // membangun semua anaknya, jadi build() ini juga berjalan saat pengguna
-    // masih di langkah 1. Tanpa pemeriksaan currentStep, permintaan review
-    // ditembakkan ke sesi yang masih 'created', server menjawab 409
-    // STEP_OUT_OF_ORDER, dan pesannya muncul di layar scan wajah sebagai
-    // "Langkah verifikasi tidak berurutan" - tanpa pengguna berbuat apa pun.
     final active = controller.currentStep == SessionStep.review;
-    if (active && !_requested && controller.reviewData == null && !controller.isBusy) {
+    if (active &&
+        !_requested &&
+        controller.reviewData == null &&
+        !controller.isBusy) {
       _requested = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => controller.loadReview());
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => controller.loadReview());
     }
 
     final data = controller.reviewData;
@@ -47,7 +40,8 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline, size: 48, color: Color(0xFFD93025)),
+                    const Icon(Icons.error_outline,
+                        size: 48, color: Color(0xFFD93025)),
                     const SizedBox(height: 12),
                     Text(controller.error!, textAlign: TextAlign.center),
                     const SizedBox(height: 16),
@@ -67,7 +61,8 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
 
     final peserta = data.peserta;
     final claim = data.claim;
-    final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+    final currency =
+        NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
     final wajahScore = (data.wajah['score'] as num?)?.toDouble();
     final securityLevel = data.sidikJari['security_level'] as String?;
 
@@ -86,7 +81,6 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
             style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
           ),
           const SizedBox(height: 20),
-
           _Section(
             title: 'Data Peserta',
             trailing: StatusBadge(
@@ -115,7 +109,8 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
               if (peserta.tanggalLahir != null)
                 DataReviewTile(
                   label: 'Tanggal Lahir',
-                  value: DateFormat('dd MMMM yyyy', 'id_ID').format(peserta.tanggalLahir!),
+                  value: DateFormat('dd MMMM yyyy', 'id_ID')
+                      .format(peserta.tanggalLahir!),
                   icon: Icons.cake_outlined,
                 ),
               DataReviewTile(
@@ -125,7 +120,9 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
               ),
               DataReviewTile(
                 label: 'Kelas Rawat',
-                value: peserta.kelasRawat == null ? '-' : 'Kelas ${peserta.kelasRawat}',
+                value: peserta.kelasRawat == null
+                    ? '-'
+                    : 'Kelas ${peserta.kelasRawat}',
                 icon: Icons.bed_outlined,
               ),
               DataReviewTile(
@@ -150,7 +147,6 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
             ],
           ),
           const SizedBox(height: 16),
-
           _Section(
             title: 'Detail Klaim',
             children: [
@@ -159,7 +155,10 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
                 value: claim.jenisLayananLabel,
                 icon: Icons.medical_services_outlined,
               ),
-              DataReviewTile(label: 'Poli', value: claim.poli, icon: Icons.meeting_room_outlined),
+              DataReviewTile(
+                  label: 'Poli',
+                  value: claim.poli,
+                  icon: Icons.meeting_room_outlined),
               DataReviewTile(
                 label: 'Fasilitas',
                 value: claim.faskes,
@@ -173,7 +172,6 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
             ],
           ),
           const SizedBox(height: 16),
-
           _Section(
             title: 'Hasil Biometrik',
             children: [
@@ -190,9 +188,9 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
                 title: 'Verifikasi Sidik Jari',
                 passed: data.sidikJari['passed'] == true,
                 icon: Icons.fingerprint,
-                detail: securityLevel == null ? null : 'Tingkat keamanan: $securityLevel',
-                // Ditampilkan apa adanya, bukan disamarkan: jalur HMAC tidak
-                // terikat perangkat keras dan itu memang menaikkan skor risiko.
+                detail: securityLevel == null
+                    ? null
+                    : 'Tingkat keamanan: $securityLevel',
                 warning: securityLevel == 'SOFTWARE'
                     ? 'Belum terikat perangkat keras (TEE). Skor risiko naik.'
                     : null,
@@ -200,7 +198,6 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
             ],
           ),
           const SizedBox(height: 24),
-
           CheckboxListTile(
             value: _confirmed,
             onChanged: (value) => setState(() => _confirmed = value ?? false),
@@ -213,7 +210,6 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
             ),
           ),
           const SizedBox(height: 8),
-
           if (controller.error != null) ...[
             Text(
               controller.error!,
@@ -221,17 +217,18 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
             ),
             const SizedBox(height: 12),
           ],
-
           FilledButton(
             onPressed: (!_confirmed || controller.isBusy)
                 ? null
                 : () => controller.confirmReview(),
-            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+            style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14)),
             child: controller.isBusy
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
                   )
                 : const Text('Konfirmasi & Lanjutkan'),
           ),
@@ -264,7 +261,9 @@ class _Section extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              Text(title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 15)),
               if (trailing != null) trailing!,
             ],
           ),

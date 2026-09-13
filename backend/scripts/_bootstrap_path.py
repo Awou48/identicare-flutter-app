@@ -1,4 +1,3 @@
-"""Put backend/ on sys.path so scripts can `from app...` without installation."""
 import sys
 from pathlib import Path
 

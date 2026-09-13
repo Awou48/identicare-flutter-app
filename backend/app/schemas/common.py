@@ -1,5 +1,3 @@
-"""Shared response envelopes."""
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -21,12 +19,7 @@ class OkResponse(BaseModel):
 
 
 class StepResponse(OkResponse):
-    """Business outcome for one flow step.
-
-    Note `result` can be "failed" on an HTTP 200. A face mismatch is the system
-    working, not an error, and the UI must render the score and remaining
-    attempts - a 4xx would be swallowed by generic error handling.
-    """
+    """Business outcome for one flow step."""
 
     step: str
     result: Literal["passed", "failed"]

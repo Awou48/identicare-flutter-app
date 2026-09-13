@@ -5,19 +5,6 @@ import 'package:identicare_mobile/theme/app_theme.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-/// Tautkan akun login ke data peserta BPJS.
-///
-/// Langkah yang hilang. Login dikelola Firebase; data BPJS, template biometrik,
-/// dan riwayat verifikasi ada di MongoDB. Keduanya dijahit oleh satu field -
-/// dan sebelum halaman ini, tidak ada cara bagi pengguna biasa untuk
-/// mengisinya. Setiap akun baru berakhir di "Akun belum tertaut BPJS" di tiga
-/// layar berbeda, dengan tombol "Coba Lagi" yang tidak pernah bisa berhasil.
-///
-/// Bukti kepemilikan: tiga data yang tercetak di kartu fisik. Bukan bukti
-/// yang kuat, tetapi cukup untuk menghentikan penautan sembarangan, dan
-/// pengaman sebenarnya ada di server: sekali tertaut tidak bisa diambil alih
-/// dari sini, percobaan salah dibatasi, dan klaim tetap harus lolos gerbang
-/// deduplikasi wajah.
 class LinkBpjsPage extends StatefulWidget {
   const LinkBpjsPage({super.key});
 
@@ -112,14 +99,14 @@ class _LinkBpjsPageState extends State<LinkBpjsPage> {
                       child: Text(
                         'Masukkan data persis seperti di kartu BPJS dan KTP Anda. '
                         'Akun hanya dapat ditautkan satu kali.',
-                        style: TextStyle(fontSize: 13, height: 1.4, color: AppColors.ink900),
+                        style: TextStyle(
+                            fontSize: 13, height: 1.4, color: AppColors.ink900),
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: AppSpacing.xxl),
-
               TextFormField(
                 controller: _bpjs,
                 enabled: !_busy,
@@ -136,7 +123,6 @@ class _LinkBpjsPageState extends State<LinkBpjsPage> {
                     : null,
               ),
               const SizedBox(height: AppSpacing.md),
-
               TextFormField(
                 controller: _nik,
                 enabled: !_busy,
@@ -148,11 +134,11 @@ class _LinkBpjsPageState extends State<LinkBpjsPage> {
                   helperText: '16 digit',
                   prefixIcon: Icon(Icons.perm_identity_outlined),
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().length != 16) ? 'NIK harus 16 digit' : null,
+                validator: (v) => (v == null || v.trim().length != 16)
+                    ? 'NIK harus 16 digit'
+                    : null,
               ),
               const SizedBox(height: AppSpacing.md),
-
               InkWell(
                 onTap: _busy ? null : _pickDob,
                 borderRadius: AppRadius.smAll,
@@ -173,31 +159,35 @@ class _LinkBpjsPageState extends State<LinkBpjsPage> {
                 ),
               ),
               const SizedBox(height: AppSpacing.xl),
-
               if (_error != null) ...[
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
                     color: AppColors.danger.withValues(alpha: 0.08),
                     borderRadius: AppRadius.smAll,
-                    border: Border.all(color: AppColors.danger.withValues(alpha: 0.35)),
+                    border: Border.all(
+                        color: AppColors.danger.withValues(alpha: 0.35)),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 18),
+                      const Icon(Icons.error_outline_rounded,
+                          color: AppColors.danger, size: 18),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(_error!, style: const TextStyle(fontSize: 13, height: 1.35)),
+                            Text(_error!,
+                                style: const TextStyle(
+                                    fontSize: 13, height: 1.35)),
                             if (_attemptsLeft != null && _attemptsLeft! > 0)
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
                                   'Sisa percobaan: $_attemptsLeft',
-                                  style: const TextStyle(fontSize: 12, color: AppColors.ink700),
+                                  style: const TextStyle(
+                                      fontSize: 12, color: AppColors.ink700),
                                 ),
                               ),
                           ],
@@ -208,14 +198,14 @@ class _LinkBpjsPageState extends State<LinkBpjsPage> {
                 ),
                 const SizedBox(height: AppSpacing.md),
               ],
-
               FilledButton.icon(
                 onPressed: _busy ? null : _submit,
                 icon: _busy
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.link_rounded),
                 label: Text(_busy ? 'Memeriksa...' : 'Tautkan Akun'),
@@ -228,7 +218,8 @@ class _LinkBpjsPageState extends State<LinkBpjsPage> {
                 'Data Anda diperiksa terhadap catatan BPJS. Kami tidak menyimpan NIK '
                 'dalam bentuk terbaca.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11.5, color: AppColors.ink500, height: 1.4),
+                style: TextStyle(
+                    fontSize: 11.5, color: AppColors.ink500, height: 1.4),
               ),
             ],
           ),

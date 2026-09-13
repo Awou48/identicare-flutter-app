@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:identicare_mobile/models/verification_session.dart';
 
-/// Indikator 4 langkah untuk alur verifikasi klaim BPJS.
 class StepProgressIndicator extends StatelessWidget {
   const StepProgressIndicator({super.key, required this.currentStep});
 
@@ -34,7 +33,8 @@ class StepProgressIndicator extends StatelessWidget {
           final index = i ~/ 2;
           final done = index < activeIndex;
           final active = index == activeIndex;
-          final color = done || active ? theme.colorScheme.primary : Colors.grey.shade300;
+          final color =
+              done || active ? theme.colorScheme.primary : Colors.grey.shade300;
 
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -70,7 +70,9 @@ class StepProgressIndicator extends StatelessWidget {
                     fontSize: 9.5,
                     height: 1.15,
                     fontWeight: active ? FontWeight.bold : FontWeight.normal,
-                    color: done || active ? theme.colorScheme.primary : Colors.grey.shade600,
+                    color: done || active
+                        ? theme.colorScheme.primary
+                        : Colors.grey.shade600,
                   ),
                 ),
               ),

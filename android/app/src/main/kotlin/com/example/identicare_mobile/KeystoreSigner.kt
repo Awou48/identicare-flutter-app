@@ -19,19 +19,6 @@ import java.security.PrivateKey
 import java.security.Signature
 import java.security.spec.ECGenParameterSpec
 
-/**
- * Tier B attestation: an EC P-256 key that lives inside the device's TEE.
- *
- * The property that matters is setUserAuthenticationRequired(true) with a
- * per-operation timeout. The private key can only be used through a
- * BiometricPrompt CryptoObject, and it is the hardware - not this code, not
- * the Flutter layer, not a patched APK - that refuses to sign until a
- * fingerprint the OS recognises has just been presented. A boolean from
- * local_auth can be faked by anyone who controls the process; this cannot.
- *
- * The fingerprint itself never leaves the sensor's secure path. The app sees a
- * signature, and only the public half of the key ever reaches the server.
- */
 class KeystoreSigner(private val activity: FragmentActivity) : MethodChannel.MethodCallHandler {
 
     companion object {
@@ -65,20 +52,16 @@ class KeystoreSigner(private val activity: FragmentActivity) : MethodChannel.Met
                 else -> result.notImplemented()
             }
         } catch (e: KeyPermanentlyInvalidatedException) {
-            // A new fingerprint was enrolled on the device since the key was
-            // made. Android destroys the key on purpose: the set of fingers
-            // that can unlock it is no longer the set the participant agreed
-            // to. The caller must delete, regenerate and re-register.
+
             result.error("KEY_INVALIDATED", e.message, null)
         } catch (e: IllegalStateException) {
-            // Thrown by generateKey when no biometric is enrolled at all.
+
             result.error("NO_BIOMETRICS", e.message, null)
         } catch (e: Exception) {
             result.error("ERROR", "${e.javaClass.simpleName}: ${e.message}", null)
         }
     }
 
-    // ------------------------------------------------------------------ //
     private fun keyStore(): KeyStore = KeyStore.getInstance(PROVIDER).apply { load(null) }
 
     private fun hasKey(alias: String): Boolean = keyStore().containsAlias(alias)
@@ -88,18 +71,13 @@ class KeystoreSigner(private val activity: FragmentActivity) : MethodChannel.Met
             .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
             .setDigests(KeyProperties.DIGEST_SHA256)
             .setUserAuthenticationRequired(true)
-            // Enrolling another fingerprint invalidates the key. Without this
-            // someone with the unlocked phone could add their own finger and
-            // then sign as the participant.
+
             .setInvalidatedByBiometricEnrollment(true)
-            // Ask the TEE to certify this key. The server parses the chain to
-            // learn the real security level instead of taking our word.
+
             .setAttestationChallenge(challenge)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // timeout 0 = every signature needs a fresh biometric, and only a
-            // STRONG (class 3) biometric - no face unlock that is merely
-            // "convenience" class, no PIN fallback.
+
             builder.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
         } else {
             @Suppress("DEPRECATION")
@@ -114,7 +92,6 @@ class KeystoreSigner(private val activity: FragmentActivity) : MethodChannel.Met
             ?: throw IllegalStateException("key $alias vanished right after generation")
     }
 
-    /** Public half, attestation chain and security level of an existing key. */
     private fun describeKey(alias: String): Map<String, Any?>? {
         val ks = keyStore()
         val entry = ks.getEntry(alias, null) as? KeyStore.PrivateKeyEntry ?: return null
@@ -122,7 +99,7 @@ class KeystoreSigner(private val activity: FragmentActivity) : MethodChannel.Met
             Base64.encodeToString(it.encoded, Base64.NO_WRAP)
         } ?: emptyList()
         return mapOf(
-            // X.509 SubjectPublicKeyInfo DER - what cryptography.load_der_public_key expects.
+
             "publicKeyDerB64" to Base64.encodeToString(entry.certificate.publicKey.encoded, Base64.NO_WRAP),
             "attestationChainB64" to chain,
             "securityLevel" to securityLevel(entry.privateKey),
@@ -169,7 +146,6 @@ class KeystoreSigner(private val activity: FragmentActivity) : MethodChannel.Met
             else -> return result.error("HW_UNAVAILABLE", "canAuthenticate=$canAuth", null)
         }
 
-        // initSign is where KeyPermanentlyInvalidatedException surfaces.
         val signature = Signature.getInstance("SHA256withECDSA")
         signature.initSign(entry.privateKey)
 
@@ -192,8 +168,7 @@ class KeystoreSigner(private val activity: FragmentActivity) : MethodChannel.Met
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(res: BiometricPrompt.AuthenticationResult) {
                 try {
-                    // The signature object is only usable NOW, inside the
-                    // authorised window the hardware just opened.
+
                     val sig = res.cryptoObject?.signature
                         ?: return reply { result.error("ERROR", "no crypto object", null) }
                     sig.update(payload.toByteArray(Charsets.UTF_8))
@@ -221,8 +196,7 @@ class KeystoreSigner(private val activity: FragmentActivity) : MethodChannel.Met
             }
 
             override fun onAuthenticationFailed() {
-                // One finger not recognised. The prompt stays open and lets the
-                // user try again; nothing to report yet.
+
             }
         }
 

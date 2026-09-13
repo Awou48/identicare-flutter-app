@@ -1,10 +1,3 @@
-"""The whole 1:N search design rests on one claim: cos(Rx, Ry) == cos(x, y).
-
-If these tests fail, the encrypted search index silently returns wrong similarity
-scores and the FACE_COLLISION fraud rule becomes noise. Everything else in the
-biometric pipeline can be wrong and be noticed; this cannot.
-"""
-
 from __future__ import annotations
 
 import numpy as np
@@ -56,9 +49,7 @@ def test_cosine_is_preserved_exactly(matrix: np.ndarray) -> None:
         y = rng.standard_normal(DIM).astype(np.float32)
 
         plain = rotation.cosine(x, y)
-        rotated = rotation.cosine(
-            rotation.apply_rotation(matrix, x), rotation.apply_rotation(matrix, y)
-        )
+        rotated = rotation.cosine(rotation.apply_rotation(matrix, x), rotation.apply_rotation(matrix, y))
         assert abs(plain - rotated) < TOL, f"drift {abs(plain - rotated):.2e}"
 
 
@@ -68,17 +59,19 @@ def test_cosine_preserved_for_normalized_vectors(matrix: np.ndarray) -> None:
     for _ in range(200):
         x = rotation.l2_normalize(rng.standard_normal(DIM))
         y = rotation.l2_normalize(rng.standard_normal(DIM))
-        assert abs(rotation.cosine(x, y) - rotation.cosine(
-            rotation.apply_rotation(matrix, x), rotation.apply_rotation(matrix, y)
-        )) < TOL
+        assert (
+            abs(
+                rotation.cosine(x, y)
+                - rotation.cosine(rotation.apply_rotation(matrix, x), rotation.apply_rotation(matrix, y))
+            )
+            < TOL
+        )
 
 
 def test_norm_is_preserved(matrix: np.ndarray) -> None:
     rng = np.random.default_rng(9)
     x = rng.standard_normal(DIM)
-    assert abs(
-        float(np.linalg.norm(rotation.apply_rotation(matrix, x))) - float(np.linalg.norm(x))
-    ) < 1e-4
+    assert abs(float(np.linalg.norm(rotation.apply_rotation(matrix, x))) - float(np.linalg.norm(x))) < 1e-4
 
 
 def test_self_similarity_is_one(matrix: np.ndarray) -> None:
@@ -88,14 +81,11 @@ def test_self_similarity_is_one(matrix: np.ndarray) -> None:
 
 
 def test_a_match_still_reads_as_a_match_after_rotation(matrix: np.ndarray) -> None:
-    """End-to-end: two noisy captures of the same identity must clear the 0.42
-    accept threshold in the rotated basis exactly as they do in the plain one."""
+    """End-to-end: two noisy captures of the same identity must clear the 0.42 accept threshold in the rotated
+    basis exactly as they do in the plain one.
+    """
     rng = np.random.default_rng(2026)
     enrolled = rotation.l2_normalize(rng.standard_normal(DIM))
-    # Noise sigma must be scaled by 1/sqrt(DIM): a per-component sigma of 0.05
-    # gives a perturbation of norm ~0.05*sqrt(512) ~ 1.13 against a unit signal,
-    # landing around cosine 0.66. Using an unscaled sigma here would swamp the
-    # signal entirely and the "match" would score below the reject threshold.
     probe = rotation.l2_normalize(enrolled + 0.05 * rng.standard_normal(DIM))
 
     plain = rotation.cosine(enrolled, probe)
@@ -112,13 +102,13 @@ def test_rotated_vector_is_not_the_original(matrix: np.ndarray) -> None:
     x = rotation.l2_normalize(np.random.default_rng(11).standard_normal(DIM))
     rotated = rotation.apply_rotation(matrix, x)
     assert not np.allclose(x, rotated, atol=1e-3)
-    # And it is not merely a permutation of the original values.
     assert not np.allclose(np.sort(x), np.sort(rotated), atol=1e-3)
 
 
 def test_cross_basis_comparison_is_meaningless(matrix: np.ndarray) -> None:
-    """Comparing a rotated vector against a canonical one gives noise, which is
-    exactly why a leaked dump cannot be matched against a public ArcFace gallery."""
+    """Comparing a rotated vector against a canonical one gives noise, which is exactly why a leaked dump
+    cannot be matched against a public ArcFace gallery.
+    """
     rng = np.random.default_rng(77)
     x = rotation.l2_normalize(rng.standard_normal(DIM))
     mixed = rotation.cosine(x, rotation.apply_rotation(matrix, x))
@@ -134,16 +124,17 @@ def test_end_to_end_encrypt_rotate_decrypt(kek: bytes, matrix: np.ndarray) -> No
     env = crypto.encrypt_embedding(kek, vec, aad)
     search_vector = rotation.apply_rotation(matrix, vec)
 
-    # 1:1 path - decrypt one document, compare, wipe.
     recovered = crypto.decrypt_embedding(kek, env, aad, dim=DIM)
     np.testing.assert_array_equal(vec, recovered)
 
-    # 1:N path - no decryption at all.
     probe = rotation.l2_normalize(vec + 0.05 * rng.standard_normal(DIM))
-    assert abs(
-        rotation.cosine(recovered, probe)
-        - rotation.cosine(search_vector, rotation.apply_rotation(matrix, probe))
-    ) < TOL
+    assert (
+        abs(
+            rotation.cosine(recovered, probe)
+            - rotation.cosine(search_vector, rotation.apply_rotation(matrix, probe))
+        )
+        < TOL
+    )
 
     crypto.wipe(recovered)
     assert not recovered.any()

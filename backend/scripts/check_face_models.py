@@ -1,17 +1,3 @@
-"""Prove the ONNX face pipeline works before any router depends on it.
-
-    python scripts/check_face_models.py                 # mechanical checks only
-    python scripts/check_face_models.py --images DIR    # real photos, full pipeline
-
-This is the riskiest single step in the backend: insightface has no cp312 wheel,
-so if running the graphs directly did not work, the whole face design would need
-rethinking. Run it first, before trusting any endpoint.
-
-With --images, point at a folder of JPEGs named <person>_<n>.jpg (e.g.
-marcel_1.jpg, marcel_2.jpg, budi_1.jpg). Same-person pairs should score well
-above the accept threshold and different-person pairs well below it.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -22,7 +8,6 @@ from pathlib import Path
 
 import numpy as np
 
-import _bootstrap_path  # noqa: F401  (side effect: sys.path)
 from app.config import get_settings
 from app.security import rotation
 from app.services import face_engine
@@ -40,9 +25,6 @@ def mechanical_checks(engine: face_engine.FaceEngine) -> bool:
     dt = (time.perf_counter() - t0) * 1000
     print(f"  [+] detector ran on random noise in {dt:6.1f} ms -> {len(faces)} faces (0 expected)")
 
-    # Embed an arbitrary crop by feeding the reference landmarks, which makes the
-    # alignment transform the identity. This exercises ArcFace without needing a
-    # detectable face.
     crop = np.random.default_rng(1).integers(0, 255, (112, 112, 3), dtype=np.uint8)
     t0 = time.perf_counter()
     vec = engine.embed(crop, face_engine.ARCFACE_REF.copy())
@@ -94,9 +76,7 @@ def mechanical_checks(engine: face_engine.FaceEngine) -> bool:
 
 def real_images(engine: face_engine.FaceEngine, folder: Path, settings) -> bool:
     print(f"\n[*] Real-image pipeline over {folder}")
-    files = sorted(
-        p for p in folder.iterdir() if p.suffix.lower() in {".jpg", ".jpeg", ".png"}
-    )
+    files = sorted(p for p in folder.iterdir() if p.suffix.lower() in {".jpg", ".jpeg", ".png"})
     if not files:
         print(f"  [!] no images found in {folder}")
         return False
@@ -120,8 +100,7 @@ def real_images(engine: face_engine.FaceEngine, folder: Path, settings) -> bool:
     if not by_person:
         return False
 
-    print("\n[*] Same-person pairs (should be >= accept threshold "
-          f"{settings.face_match_accept})")
+    print(f"\n[*] Same-person pairs (should be >= accept threshold {settings.face_match_accept})")
     same_scores = []
     for person, items in by_person.items():
         for i in range(len(items)):
@@ -131,8 +110,7 @@ def real_images(engine: face_engine.FaceEngine, folder: Path, settings) -> bool:
                 verdict = "PASS" if score >= settings.face_match_accept else "FAIL"
                 print(f"  [{verdict}] {person:<12} {items[i][0]} vs {items[j][0]}: {score:.4f}")
 
-    print(f"\n[*] Different-person pairs (should be < reject threshold "
-          f"{settings.face_match_review})")
+    print(f"\n[*] Different-person pairs (should be < reject threshold {settings.face_match_review})")
     diff_scores = []
     names = list(by_person)
     for a in range(len(names)):
@@ -178,9 +156,7 @@ def main() -> int:
             return 1
 
     t0 = time.perf_counter()
-    engine = face_engine.FaceEngine(
-        Path(det), Path(rec), intra_op_threads=settings.ort_intra_op_threads
-    )
+    engine = face_engine.FaceEngine(Path(det), Path(rec), intra_op_threads=settings.ort_intra_op_threads)
     print(f"[+] Both models loaded in {time.perf_counter() - t0:.1f}s, dim={engine.embedding_dim}")
 
     ok = mechanical_checks(engine)

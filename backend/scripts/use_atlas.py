@@ -1,23 +1,3 @@
-"""Point the backend at MongoDB Atlas and prepare the database. One command.
-
-    python backend/scripts/use_atlas.py cluster0.ab12cd.mongodb.net
-
-Why Atlas instead of the Docker container: Docker Desktop on this machine needs
-administrator rights to start its service, and when it is down the local
-MongoDB is down, so the backend cannot start, so every screen in the app that
-talks to the server times out. Atlas removes Docker from the picture entirely.
-
-What this does, in order:
-  1. Rewrites MONGO_URI in backend/.env with the host you give it (the user
-     name and password already there are kept).
-  2. Connects and pings - fails loudly with the two causes that account for
-     almost every Atlas connection problem (IP not allowlisted, wrong password).
-  3. Runs bootstrap.py (collections, validators, indexes) against Atlas.
-  4. Runs seed_peserta.py and seed_articles.py so the app has data.
-
-Safe to re-run; every step is idempotent.
-"""
-
 from __future__ import annotations
 
 import re
@@ -27,8 +7,6 @@ from pathlib import Path
 
 from pymongo import MongoClient
 from pymongo.errors import ConfigurationError, OperationFailure, ServerSelectionTimeoutError
-
-import _bootstrap_path  # noqa: F401  (side effect: sys.path)
 
 BACKEND = Path(__file__).resolve().parent.parent
 ENV = BACKEND / ".env"
@@ -41,7 +19,6 @@ def main() -> int:
         return 2
 
     host = sys.argv[1].strip()
-    # Accept a full connection string too, and pull the host out of it.
     m = re.match(r"mongodb\+srv://(?:[^@]+@)?([^/?]+)", host)
     if m:
         host = m.group(1)
@@ -75,7 +52,6 @@ def main() -> int:
     ENV.write_text(text, encoding="utf-8")
     print(f"[+] MONGO_URI now points at {host}")
 
-    # ---------------------------------------------------------------- #
     print("[*] Connecting to Atlas...")
     try:
         client = MongoClient(uri, serverSelectionTimeoutMS=15000)
@@ -99,7 +75,6 @@ def main() -> int:
         return 1
     print("[+] Atlas reachable")
 
-    # ---------------------------------------------------------------- #
     py = sys.executable
     for script in ("bootstrap.py", "seed_peserta.py", "seed_articles.py"):
         path = BACKEND / "scripts" / script

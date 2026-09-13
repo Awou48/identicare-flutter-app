@@ -84,16 +84,15 @@ class ProfilePage extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            // "Terjadi kesalahan." tanpa detail tidak memberi apa pun untuk
-            // ditindaklanjuti. Penyebab paling sering adalah aturan keamanan
-            // Firestore menolak pembacaan, dan itu hanya terlihat kalau
-            // pesan aslinya ditampilkan.
             final error = snapshot.error.toString();
             final denied = error.contains('permission-denied') ||
                 error.contains('PERMISSION_DENIED');
             return AppEmptyState(
-              icon: denied ? Icons.lock_outline_rounded : Icons.error_outline_rounded,
-              title: denied ? 'Akses profil ditolak' : 'Tidak dapat memuat profil',
+              icon: denied
+                  ? Icons.lock_outline_rounded
+                  : Icons.error_outline_rounded,
+              title:
+                  denied ? 'Akses profil ditolak' : 'Tidak dapat memuat profil',
               message: denied
                   ? 'Aturan keamanan Firestore menolak pembacaan dokumen ini. '
                       'Terapkan firestore.rules dengan: '
@@ -103,8 +102,6 @@ class ProfilePage extends StatelessWidget {
             );
           }
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            // Dokumen profil tidak ada. Buat, jangan hanya menyerah: stream di
-            // atas akan langsung memancarkan dokumen barunya begitu tertulis.
             return _MissingProfile(
               onCreate: () => authService.ensureProfileDocument(),
             );
@@ -121,7 +118,11 @@ class ProfilePage extends StatelessWidget {
               _buildInfoCard(context, [
                 _buildInfoRow('Email', data['email'] ?? 'Tidak ada'),
                 _buildInfoRow('Telepon', 'Belum diatur'),
-                _buildInfoRow('Bergabung Sejak', createdAt != null ? DateFormat('dd MMMM yyyy', 'id_ID').format(createdAt) : 'Tidak diketahui'),
+                _buildInfoRow(
+                    'Bergabung Sejak',
+                    createdAt != null
+                        ? DateFormat('dd MMMM yyyy', 'id_ID').format(createdAt)
+                        : 'Tidak diketahui'),
               ]),
               const SizedBox(height: 24),
               ElevatedButton.icon(
@@ -131,11 +132,10 @@ class ProfilePage extends StatelessWidget {
                 icon: const Icon(Icons.logout),
                 label: const Text('Logout'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red.shade50,
-                  foregroundColor: Colors.red.shade700,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 16)
-                ),
+                    backgroundColor: Colors.red.shade50,
+                    foregroundColor: Colors.red.shade700,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 16)),
               ),
             ],
           );
@@ -149,8 +149,10 @@ class ProfilePage extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: 60,
-          backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-          child: const Icon(Icons.person_rounded, size: 70, color: Color(0xFF0A7E8C)),
+          backgroundColor:
+              Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+          child: const Icon(Icons.person_rounded,
+              size: 70, color: Color(0xFF0A7E8C)),
         ),
         const SizedBox(height: 16),
         Text(
@@ -186,8 +188,11 @@ class ProfilePage extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: TextStyle(fontSize: 16, color: Colors.grey.shade700)),
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          Text(title,
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade700)),
+          Text(value,
+              style:
+                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
         ],
       ),
     );

@@ -1,11 +1,3 @@
-"""Firebase ID token verification against Google's public keys.
-
-The point of these tests: the server must accept a genuine Firebase token
-WITHOUT holding any service-account credential, and must reject every variation
-that a forger would try. Signing with a key we control and injecting the public
-half into the cert cache lets us exercise the real decode path end to end.
-"""
-
 from __future__ import annotations
 
 import time
@@ -60,8 +52,7 @@ def make_token(signing_key, **overrides) -> str:
 
 
 def test_genuine_token_is_accepted(signing_key, settings):
-    """The case that was failing in production: a real app token, no service
-    account on disk, must verify."""
+    """The case that was failing in production: a real app token, no service account on disk, must verify."""
     user = fa.verify(make_token(signing_key), settings)
     assert user.uid == "firebase-uid-abc123"
     assert user.email == "marcel@example.com"
@@ -75,8 +66,9 @@ def test_status_reports_the_live_path():
 
 
 def test_token_for_another_project_is_rejected(signing_key, settings):
-    """A token minted for a different Firebase project is a valid Google
-    signature - only the audience check stops it being accepted here."""
+    """A token minted for a different Firebase project is a valid Google signature - only the audience check
+    stops it being accepted here.
+    """
     with pytest.raises(ApiError) as exc:
         fa.verify(make_token(signing_key, aud="some-other-project"), settings)
     assert exc.value.status_code == 401
@@ -90,7 +82,6 @@ def test_wrong_issuer_is_rejected(signing_key, settings):
 
 def test_expired_token_is_rejected(signing_key, settings):
     now = int(time.time())
-    # Comfortably past the clock-skew leeway, so this is unambiguously expired.
     with pytest.raises(ApiError) as exc:
         fa.verify(
             make_token(signing_key, exp=now - fa.LEEWAY_SECONDS - 60, iat=now - 7200),
@@ -100,9 +91,9 @@ def test_expired_token_is_rejected(signing_key, settings):
 
 
 def test_leeway_tolerates_small_clock_skew(signing_key, settings):
-    """Deliberate: a token a few seconds past expiry still verifies, because the
-    phone's clock and Google's are never exactly aligned and a hard cutoff makes
-    users randomly fail mid-session. The window is LEEWAY_SECONDS, not unbounded.
+    """Deliberate: a token a few seconds past expiry still verifies, because the phone's clock and Google's
+    are never exactly aligned and a hard cutoff makes users randomly fail mid-session. The window is
+    LEEWAY_SECONDS, not unbounded.
     """
     now = int(time.time())
     user = fa.verify(make_token(signing_key, exp=now - 5), settings)

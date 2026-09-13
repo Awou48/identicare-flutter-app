@@ -49,7 +49,8 @@ class _ArticleListPageState extends State<ArticleListPage> {
   }
 
   Future<void> _loadCategories() async {
-    final result = await context.read<VerificationApiService>().fetchArticleCategories();
+    final result =
+        await context.read<VerificationApiService>().fetchArticleCategories();
     if (!mounted) return;
     result.when(
       ok: (categories) => setState(() => _categories = categories),
@@ -132,7 +133,8 @@ class _ArticleListPageState extends State<ArticleListPage> {
     if (_items.isEmpty) {
       return AppEmptyState(
         icon: _error != null ? Icons.cloud_off_rounded : Icons.article_outlined,
-        title: _error != null ? 'Tidak dapat memuat artikel' : 'Belum ada artikel',
+        title:
+            _error != null ? 'Tidak dapat memuat artikel' : 'Belum ada artikel',
         message: _error != null
             ? 'Periksa koneksi server di menu Pengaturan.'
             : 'Artikel kesehatan akan muncul di sini.',
@@ -210,14 +212,14 @@ class _ArticleRow extends StatelessWidget {
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Container(
                               color: AppColors.ink100,
-                              child: const Icon(Icons.image_not_supported_outlined,
+                              child: const Icon(
+                                  Icons.image_not_supported_outlined,
                                   color: AppColors.ink300),
                             ),
                           ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
-                // Expanded: judul panjang membungkus alih-alih meluap.
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -255,7 +257,8 @@ class _ArticleRow extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         '${article.readingMinutes} menit baca',
-                        style: const TextStyle(fontSize: 11, color: AppColors.ink500),
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.ink500),
                       ),
                     ],
                   ),

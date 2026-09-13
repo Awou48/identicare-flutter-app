@@ -5,11 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:identicare_mobile/config/app_config.dart';
 import 'package:image/image.dart' as img;
 
-/// Kamera depan + burst 3 frame untuk langkah Scan Wajah.
-///
-/// Frame di-resize dan di-encode ulang sebelum diunggah. Jangan pernah mengirim
-/// frame 12 MP: server hanya butuh wajah minimal 112 px, dan unggahannya jauh
-/// lebih lambat di Wi-Fi lokasi.
 class FaceCaptureService {
   CameraController? _controller;
   List<CameraDescription> _cameras = const [];
@@ -19,7 +14,9 @@ class FaceCaptureService {
   bool get isReady => _controller?.value.isInitialized ?? false;
 
   Future<CaptureInit> initialize() async {
-    if (_initializing) return const CaptureInit(ok: false, reason: 'Sedang menyiapkan kamera.');
+    if (_initializing) {
+      return const CaptureInit(ok: false, reason: 'Sedang menyiapkan kamera.');
+    }
     _initializing = true;
     try {
       _cameras = await availableCameras();
@@ -37,8 +34,6 @@ class FaceCaptureService {
 
       final controller = CameraController(
         front,
-        // medium (~640x480) sudah cukup: server men-deteksi pada 640 dan hanya
-        // butuh wajah >= 112 px. Resolusi lebih tinggi hanya menambah latensi.
         ResolutionPreset.medium,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
@@ -63,10 +58,6 @@ class FaceCaptureService {
     }
   }
 
-  /// Ambil burst dan kembalikan JPEG yang sudah dikecilkan.
-  ///
-  /// [onFrame] dipanggil setelah tiap frame supaya UI bisa menampilkan progres -
-  /// tanpa itu tombol terlihat menggantung sekitar satu detik.
   Future<List<List<int>>> captureBurst({
     int frames = AppConfig.faceBurstFrames,
     Duration interval = AppConfig.faceBurstInterval,
@@ -84,12 +75,9 @@ class FaceCaptureService {
       captured.add(await compute(_downscale, bytes));
       onFrame?.call(i + 1, frames);
 
-      // Bersihkan file sementara: frame wajah tidak boleh menumpuk di disk.
       try {
         await File(file.path).delete();
-      } catch (_) {
-        // Tidak fatal.
-      }
+      } catch (_) {}
 
       if (i < frames - 1) await Future<void>.delayed(interval);
     }
@@ -117,15 +105,11 @@ class FaceCaptureService {
   }
 }
 
-/// Berjalan di isolate lain lewat `compute` supaya decode/encode JPEG tidak
-/// membekukan UI di tengah burst.
 List<int> _downscale(List<int> bytes) {
   try {
     final decoded = img.decodeImage(Uint8List.fromList(bytes));
     if (decoded == null) return bytes;
 
-    // EXIF sudah dinormalisasi oleh bakeOrientation, sehingga server tidak
-    // menerima wajah yang terbalik dan gagal mendeteksinya.
     final oriented = img.bakeOrientation(decoded);
 
     final longest =
@@ -145,8 +129,6 @@ List<int> _downscale(List<int> bytes) {
 
     return img.encodeJpg(resized, quality: AppConfig.uploadJpegQuality);
   } catch (_) {
-    // Kalau pemrosesan gagal, kirim byte aslinya - server punya gerbang
-    // kualitasnya sendiri dan akan menolaknya dengan pesan yang jelas.
     return bytes;
   }
 }

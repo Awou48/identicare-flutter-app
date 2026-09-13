@@ -1,12 +1,3 @@
-"""Rule engine. Runs server-side at commit; a client-supplied score is never trusted.
-
-Weights sum into a 0-100 risk score:
-    0-39   LOW     -> APPROVED
-    40-69  MEDIUM  -> REVIEW
-    >=70   HIGH    -> REJECTED
-Any `critical` signal forces REJECTED regardless of the arithmetic.
-"""
-
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -27,8 +18,6 @@ SHARED_DEVICE_LIMIT = 3
 FAILED_ATTEMPT_HOURS = 24
 FAILED_ATTEMPT_LIMIT = 5
 OFF_HOURS_WIB = (0, 5)
-# Overrides per staff member over a rolling window before the frequency rule
-# escalates to critical.
 OVERRIDE_WEEKLY_LIMIT = 5
 OVERRIDE_WINDOW_DAYS = 7
 EMERGENCY_POLI = {"IGD", "Gawat Darurat", "Emergency"}
@@ -89,10 +78,10 @@ async def evaluate(
     return score, band, decision, signals
 
 
-# --------------------------------------------------------------------------- #
 async def _simultaneous_claim(db, session, peserta_id, now) -> list[Signal]:
-    """Same peserta, different faskes, inside 4 hours. The headline fraud case:
-    one person claiming at two hospitals at once."""
+    """Same peserta, different faskes, inside 4 hours. The headline fraud case: one person claiming at two
+    hospitals at once.
+    """
     since = now - timedelta(hours=SIMULTANEOUS_WINDOW_HOURS)
     other = await db.verification_sessions.find_one(
         {
@@ -327,12 +316,7 @@ def _menunggak(peserta) -> list[Signal]:
 
 
 def _manual_override(session) -> list[Signal]:
-    """A break-glass override is always worth a human look.
-
-    It is not an accusation - most overrides are legitimate - but an approved
-    claim that skipped biometric proof must never be indistinguishable from one
-    that passed it.
-    """
+    """A break-glass override is always worth a human look."""
     override = session.get("override") or {}
     if override.get("status") != "approved":
         return []
@@ -353,12 +337,7 @@ def _manual_override(session) -> list[Signal]:
 
 
 async def _staff_override_frequency(db, session, now) -> list[Signal]:
-    """THE control that catches insider fraud.
-
-    One override is a bruised face. Twenty in a week from the same staff member
-    is not a run of bad luck - it is the override being used as the fraud
-    mechanism, which is precisely the risk a break-glass path introduces.
-    """
+    """THE control that catches insider fraud."""
     override = session.get("override") or {}
     approver = override.get("approved_by")
     if override.get("status") != "approved" or not approver:

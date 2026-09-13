@@ -1,12 +1,3 @@
-"""Image decoding and the quality gate that runs before any inference.
-
-The gate is deliberately cheap and deliberately first. Roughly nine out of ten
-bad captures (motion blur, a dark room, a thumb over the lens) can be rejected
-in under a millisecond of NumPy, which is far better than spending 60 ms of
-SCRFD to reach the same conclusion - and it gives the user a specific,
-actionable message instead of "wajah tidak terdeteksi".
-"""
-
 from __future__ import annotations
 
 import cv2
@@ -15,21 +6,8 @@ import numpy as np
 MAX_BYTES = 5 * 1024 * 1024
 MAX_DIMENSION = 4096
 
-# Whole-frame Laplacian variance below this means the lens is covered or the
-# camera is completely defocused. It is a SANITY check, not a sharpness check.
-#
-# It used to be 100 - the number every blog post quotes - and that rejected
-# every real capture from the app: frames arrive downscaled to 640 px, and a
-# selfie against a plain wall at that size measures 20-80 even when perfectly
-# sharp (observed: 19, 38, 43, 70, 76 on a phone in good light). The frame is
-# mostly wall; the wall has no edges; the variance is low. Sharpness of the
-# part that matters is measured on the face crop after detection, see
-# MIN_FACE_SHARPNESS.
 MIN_BLUR_VAR = 8.0
-# Laplacian variance of the detected face crop. Skin, eyes and hair give a
-# sharp face at 150-300 px well over 50; motion blur drops it under 15.
 MIN_FACE_SHARPNESS = 20.0
-# Mean luma outside this band is too dark or blown out for reliable landmarks.
 MIN_BRIGHTNESS = 60.0
 MAX_BRIGHTNESS = 200.0
 
@@ -76,11 +54,7 @@ def region_sharpness(img_bgr: np.ndarray, bbox: np.ndarray) -> float:
 
 
 def high_frequency_energy(img_bgr: np.ndarray) -> float:
-    """Ratio of high-frequency energy in the FFT magnitude spectrum.
-
-    An LCD or phone screen re-photographed produces a characteristic periodic
-    moire peak in this band that live skin does not.
-    """
+    """Ratio of high-frequency energy in the FFT magnitude spectrum."""
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
     if min(gray.shape) < 32:
         return 0.0

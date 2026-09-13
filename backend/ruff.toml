@@ -5,14 +5,9 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B"]
 
 [lint.isort]
-# scripts/_bootstrap_path must be imported before any `app.*` import, since it is
-# what puts backend/ on sys.path. Treat it as first-party so isort keeps it above.
 known-first-party = ["app", "_bootstrap_path"]
 
 [lint.flake8-bugbear]
-# FastAPI's whole dependency-injection design puts these calls in argument
-# defaults. B008 exists to catch mutable defaults; these are the framework idiom,
-# not a bug.
 extend-immutable-calls = [
     "fastapi.Depends",
     "fastapi.File",
@@ -24,8 +19,5 @@ extend-immutable-calls = [
 ]
 
 [lint.per-file-ignores]
-# seed_articles.py berisi prosa artikel, bukan kode. Baris panjang di sana
-# adalah PARAGRAF: memotongnya akan mengubah teks yang dirender, karena
-# pemisah paragrafnya justru baris kosong. Batas panjang baris ditujukan untuk
-# keterbacaan kode, dan tidak berlaku untuk konten.
 "scripts/seed_articles.py" = ["E501"]
+"scripts/*.py" = ["E402"]

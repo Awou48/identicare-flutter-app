@@ -1,10 +1,3 @@
-"""Verification history: date, method, status, location.
-
-Cursor pagination, not skip/limit. A skip-based page 50 makes MongoDB walk 1000
-documents it then discards, and rows shifting between requests silently duplicate
-or drop entries.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -55,12 +48,7 @@ async def list_history(
     cursor: str | None = None,
     status_filter: str | None = Query(default=None, alias="status"),
 ) -> HistoryPage:
-    """A user sees only their own history.
-
-    Scoping is by peserta.firebase_uid == token.uid, resolved server-side. The
-    client never supplies the peserta id, so it cannot page through somebody
-    else's verification record by changing a parameter.
-    """
+    """A user sees only their own history."""
     peserta = await _resolve_peserta(db, user.uid)
 
     query: dict = {"peserta_id": peserta["_id"], "result": {"$ne": None}}
@@ -84,9 +72,7 @@ async def list_history(
     docs = docs[:limit]
 
     items = [_to_item(d) for d in docs]
-    next_cursor = (
-        _encode_cursor(docs[-1]["created_at"], docs[-1]["_id"]) if has_more and docs else None
-    )
+    next_cursor = _encode_cursor(docs[-1]["created_at"], docs[-1]["_id"]) if has_more and docs else None
     return HistoryPage(items=items, next_cursor=next_cursor, has_more=has_more)
 
 
@@ -133,17 +119,11 @@ async def history_detail(session_id: str, db: DbDep, user: CurrentUserDep) -> di
     except Exception as exc:
         raise ApiError("SESSION_NOT_FOUND", 404) from exc
 
-    session = await db.verification_sessions.find_one(
-        {"_id": oid, "peserta_id": peserta["_id"]}
-    )
+    session = await db.verification_sessions.find_one({"_id": oid, "peserta_id": peserta["_id"]})
     if not session:
         raise ApiError("SESSION_NOT_FOUND", 404)
 
-    events = (
-        await db.verification_events.find({"session_id": oid})
-        .sort([("seq", 1)])
-        .to_list(200)
-    )
+    events = await db.verification_events.find({"session_id": oid}).sort([("seq", 1)]).to_list(200)
 
     return {
         "status": "ok",

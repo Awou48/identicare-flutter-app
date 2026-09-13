@@ -6,12 +6,23 @@ class TelemedicinePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Data dummy dokter telemedicine
     final List<Map<String, dynamic>> doctors = [
-      {'name': 'Dr. Rina Wulandari', 'specialty': 'Dokter Umum', 'status': 'Online'},
+      {
+        'name': 'Dr. Rina Wulandari',
+        'specialty': 'Dokter Umum',
+        'status': 'Online'
+      },
       {'name': 'Dr. Anisa Rahma', 'specialty': 'Psikolog', 'status': 'Online'},
-      {'name': 'Dr. Hendra Wijaya', 'specialty': 'Psikiater', 'status': 'Offline'},
-      {'name': 'Dr. Kevin Tan', 'specialty': 'Dokter Anak', 'status': 'Sedang Konsultasi'},
+      {
+        'name': 'Dr. Hendra Wijaya',
+        'specialty': 'Psikiater',
+        'status': 'Offline'
+      },
+      {
+        'name': 'Dr. Kevin Tan',
+        'specialty': 'Dokter Anak',
+        'status': 'Sedang Konsultasi'
+      },
     ];
 
     return Scaffold(
@@ -24,7 +35,10 @@ class TelemedicinePage extends StatelessWidget {
         children: [
           Text(
             'Dokter Tersedia',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
@@ -32,7 +46,8 @@ class TelemedicinePage extends StatelessWidget {
             style: TextStyle(color: Colors.grey.shade700, fontSize: 16),
           ),
           const SizedBox(height: 20),
-          ...doctors.map((doctor) => _buildTelemedicineDoctorCard(context, doctor)),
+          ...doctors
+              .map((doctor) => _buildTelemedicineDoctorCard(context, doctor)),
         ],
       ),
     );
@@ -49,7 +64,8 @@ class TelemedicinePage extends StatelessWidget {
     }
   }
 
-  Widget _buildTelemedicineDoctorCard(BuildContext context, Map<String, dynamic> doctor) {
+  Widget _buildTelemedicineDoctorCard(
+      BuildContext context, Map<String, dynamic> doctor) {
     bool isOnline = doctor['status'] == 'Online';
     return Card(
       elevation: 2,
@@ -68,7 +84,9 @@ class TelemedicinePage extends StatelessWidget {
                       backgroundColor: Colors.blue.shade50,
                       child: Text(
                         doctor['name']!.substring(0, 2).toUpperCase(),
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary),
                       ),
                     ),
                     Positioned(
@@ -91,9 +109,13 @@ class TelemedicinePage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(doctor['name']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                      Text(doctor['name']!,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 18)),
                       const SizedBox(height: 4),
-                      Text(doctor['specialty']!, style: TextStyle(color: Colors.grey.shade700, fontSize: 15)),
+                      Text(doctor['specialty']!,
+                          style: TextStyle(
+                              color: Colors.grey.shade700, fontSize: 15)),
                     ],
                   ),
                 ),
@@ -103,17 +125,23 @@ class TelemedicinePage extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: isOnline ? () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => ChatPage(doctor: doctor)),
-                  );
-                } : null,
+                onPressed: isOnline
+                    ? () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => ChatPage(doctor: doctor)),
+                        );
+                      }
+                    : null,
                 icon: const Icon(Icons.chat_bubble_outline),
                 label: const Text('Mulai Chat'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isOnline ? Theme.of(context).colorScheme.secondary : Colors.grey.shade300,
-                  foregroundColor: isOnline ? Colors.white : Colors.grey.shade600,
+                  backgroundColor: isOnline
+                      ? Theme.of(context).colorScheme.secondary
+                      : Colors.grey.shade300,
+                  foregroundColor:
+                      isOnline ? Colors.white : Colors.grey.shade600,
                 ),
               ),
             )

@@ -1,5 +1,3 @@
-"""IdentiCare API entrypoint."""
-
 from __future__ import annotations
 
 import logging
@@ -51,10 +49,6 @@ async def lifespan(app: FastAPI):
 
     firebase_auth.init(settings)
 
-    # Models are optional at boot: if they are missing the rest of the API still
-    # works and only the face endpoints return MODEL_UNAVAILABLE. Refusing to
-    # start would make a 170 MB download a hard prerequisite for testing the
-    # session state machine, which it is not.
     started = time.perf_counter()
     engine = face_engine.load_engine(
         settings.face_det_model, settings.face_rec_model, settings.ort_intra_op_threads
@@ -142,19 +136,13 @@ async def validation_handler(request: Request, exc: RequestValidationError) -> J
 async def http_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
-        content=error_body(
-            "HTTP_ERROR", str(exc.detail), _request_id(request), {"status": exc.status_code}
-        ),
+        content=error_body("HTTP_ERROR", str(exc.detail), _request_id(request), {"status": exc.status_code}),
     )
 
 
 @app.exception_handler(WriteError)
 async def write_error_handler(request: Request, exc: WriteError) -> JSONResponse:
-    """A MongoDB validator rejection is a contract bug, not a server fault.
-
-    Surfacing it as a bare 500 hides which field failed, so the offending
-    property name is extracted and returned.
-    """
+    """A MongoDB validator rejection is a contract bug, not a server fault."""
     fields: list[str] = []
     try:
         details = (exc.details or {}).get("errInfo", {}).get("details", {})
@@ -177,8 +165,6 @@ async def write_error_handler(request: Request, exc: WriteError) -> JSONResponse
 
 @app.exception_handler(Exception)
 async def unhandled_handler(request: Request, exc: Exception) -> JSONResponse:
-    # Log the traceback, return a generic body. Internal details must never reach
-    # a client of a system holding biometric data.
     log.exception("Unhandled error on %s [%s]", request.url.path, _request_id(request))
     return JSONResponse(
         status_code=500,
@@ -198,8 +184,6 @@ app.include_router(history_router.router, prefix=API_PREFIX)
 app.include_router(fraud.router, prefix=API_PREFIX)
 app.include_router(articles.router, prefix=API_PREFIX)
 app.include_router(peserta.router, prefix=API_PREFIX)
-# symptoms carries its own paths: the legacy /analyze_symptoms at the root plus
-# the versioned alias, so the existing Flutter client keeps working unchanged.
 app.include_router(symptoms.router)
 
 

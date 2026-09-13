@@ -1,11 +1,3 @@
-"""POST /peserta/link - the bridge between Firebase Auth and BPJS records.
-
-These run against a live MongoDB and skip without one. They exercise the three
-guarantees the endpoint makes, in the order an attacker would probe them:
-wrong identity is refused with a uniform message, an already-linked record
-cannot be taken over, and guessing is rate-limited.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -109,21 +101,21 @@ def test_linking_is_idempotent_for_the_same_account(settings, peserta):
     ids=["wrong-nik", "wrong-dob", "unknown-bpjs"],
 )
 def test_wrong_identity_is_refused_with_a_uniform_message(settings, peserta, bad):
-    """Every mismatch gives the same code and message. Saying WHICH field was
-    wrong would turn this into an oracle for pairing NIKs with BPJS numbers."""
+    """Every mismatch gives the same code and message. Saying WHICH field was wrong would turn this into an
+    oracle for pairing NIKs with BPJS numbers.
+    """
     with pytest.raises(ApiError) as exc:
         _run(_call(settings, "test-uid-mallory", **bad))
     assert exc.value.code == "IDENTITY_MISMATCH"
     assert exc.value.status_code == 403
-    # Identical copy for every branch - including "no such BPJS number", which
-    # is the case an enumerator most wants to distinguish.
     assert exc.value.message.startswith("Data tidak cocok dengan catatan BPJS.")
     assert exc.value.details["attempts_left"] == peserta_router.LINK_MAX_FAILURES - 1
 
 
 def test_cannot_take_over_an_already_linked_record(sync_db, settings, peserta):
-    """The takeover attempt: correct triple, but the record belongs to someone
-    else. Refused, AND recorded as a fraud signal rather than silently dropped."""
+    """The takeover attempt: correct triple, but the record belongs to someone else. Refused, AND recorded as
+    a fraud signal rather than silently dropped.
+    """
     _run(_call(settings, "test-uid-alice"))
     with pytest.raises(ApiError) as exc:
         _run(_call(settings, "test-uid-mallory"))
@@ -160,13 +152,14 @@ def test_one_account_cannot_hold_two_participants(sync_db, settings, peserta):
 
 
 def test_guessing_is_rate_limited(settings, peserta):
-    """Five wrong guesses in an hour, then the door closes - even for a correct
-    sixth attempt. Without this the NIK space could be walked."""
+    """Five wrong guesses in an hour, then the door closes - even for a correct sixth attempt. Without this
+    the NIK space could be walked.
+    """
     for _ in range(peserta_router.LINK_MAX_FAILURES):
         with pytest.raises(ApiError):
             _run(_call(settings, "test-uid-bruteforce", nik="1111111111111111"))
     with pytest.raises(ApiError) as exc:
-        _run(_call(settings, "test-uid-bruteforce"))  # correct, but too late
+        _run(_call(settings, "test-uid-bruteforce"))
     assert exc.value.code == "TOO_MANY_ATTEMPTS"
     assert exc.value.status_code == 429
 

@@ -10,13 +10,47 @@ class MedicalRecordsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Data dummy untuk daftar rekam medis
     final List<Map<String, dynamic>> records = [
-      {'title': 'Hasil Laboratorium', 'subtitle': 'Pemeriksaan Darah Lengkap', 'date': '01 Jul 2025', 'icon': Icons.science_outlined, 'color': Colors.orange, 'page': const LabResultDetailPage()},
-      {'title': 'Resep Digital', 'subtitle': 'Amoxicillin & Paracetamol', 'date': '28 Jun 2025', 'icon': Icons.medication_outlined, 'color': Colors.green, 'page': const PrescriptionDetailPage()},
-      {'title': 'Catatan Diagnosa', 'subtitle': 'Konsultasi dengan Dr. Budi', 'date': '28 Jun 2025', 'icon': Icons.assignment_ind_outlined, 'color': Colors.blue, 'page': const DiagnosisDetailPage()},
-      {'title': 'Laporan Radiologi', 'subtitle': 'X-Ray Dada', 'date': '15 Mei 2025', 'icon': Icons.document_scanner_outlined, 'color': Colors.purple, 'page': const RadiologyDetailPage()},
-      {'title': 'Riwayat Vaksinasi', 'subtitle': 'Vaksin Influenza', 'date': '10 Jan 2025', 'icon': Icons.vaccines_outlined, 'color': Colors.red, 'page': const VaccinationDetailPage()},
+      {
+        'title': 'Hasil Laboratorium',
+        'subtitle': 'Pemeriksaan Darah Lengkap',
+        'date': '01 Jul 2025',
+        'icon': Icons.science_outlined,
+        'color': Colors.orange,
+        'page': const LabResultDetailPage()
+      },
+      {
+        'title': 'Resep Digital',
+        'subtitle': 'Amoxicillin & Paracetamol',
+        'date': '28 Jun 2025',
+        'icon': Icons.medication_outlined,
+        'color': Colors.green,
+        'page': const PrescriptionDetailPage()
+      },
+      {
+        'title': 'Catatan Diagnosa',
+        'subtitle': 'Konsultasi dengan Dr. Budi',
+        'date': '28 Jun 2025',
+        'icon': Icons.assignment_ind_outlined,
+        'color': Colors.blue,
+        'page': const DiagnosisDetailPage()
+      },
+      {
+        'title': 'Laporan Radiologi',
+        'subtitle': 'X-Ray Dada',
+        'date': '15 Mei 2025',
+        'icon': Icons.document_scanner_outlined,
+        'color': Colors.purple,
+        'page': const RadiologyDetailPage()
+      },
+      {
+        'title': 'Riwayat Vaksinasi',
+        'subtitle': 'Vaksin Influenza',
+        'date': '10 Jan 2025',
+        'icon': Icons.vaccines_outlined,
+        'color': Colors.red,
+        'page': const VaccinationDetailPage()
+      },
     ];
 
     return Scaffold(
@@ -27,17 +61,16 @@ class MedicalRecordsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          // Kartu Highlight untuk hasil terbaru
           _buildHighlightCard(context, records[0]),
           const SizedBox(height: 24),
-          
           Text(
             'Semua Riwayat',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-
-          // Daftar semua riwayat medis
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -53,10 +86,11 @@ class MedicalRecordsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildHighlightCard(BuildContext context, Map<String, dynamic> record) {
+  Widget _buildHighlightCard(
+      BuildContext context, Map<String, dynamic> record) {
     return Card(
       elevation: 4,
-      shadowColor: (record['color'] as Color).withOpacity(0.2),
+      shadowColor: (record['color'] as Color).withValues(alpha: 0.2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: record['color'] as Color,
       child: Padding(
@@ -70,7 +104,9 @@ class MedicalRecordsPage extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Hasil Terbaru',
-                  style: TextStyle(color: Colors.white.withOpacity(0.9), fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -86,14 +122,15 @@ class MedicalRecordsPage extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Tanggal: ${record['date'] as String}',
-              style: TextStyle(color: Colors.white.withOpacity(0.8)),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
             ),
             const SizedBox(height: 16),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: () {
-                   Navigator.push(context, MaterialPageRoute(builder: (_) => record['page']));
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => record['page']));
                 },
                 style: TextButton.styleFrom(
                   backgroundColor: Colors.white,
@@ -108,14 +145,15 @@ class MedicalRecordsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildRecordListTile(BuildContext context, Map<String, dynamic> record) {
+  Widget _buildRecordListTile(
+      BuildContext context, Map<String, dynamic> record) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
+            color: Colors.grey.withValues(alpha: 0.08),
             blurRadius: 10,
           )
         ],
@@ -123,17 +161,20 @@ class MedicalRecordsPage extends StatelessWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         leading: CircleAvatar(
-          backgroundColor: (record['color'] as Color).withOpacity(0.1),
-          child: Icon(record['icon'] as IconData, color: record['color'] as Color),
+          backgroundColor: (record['color'] as Color).withValues(alpha: 0.1),
+          child:
+              Icon(record['icon'] as IconData, color: record['color'] as Color),
         ),
-        title: Text(record['title'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(record['title'] as String,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(record['subtitle'] as String),
         trailing: Text(
           record['date'] as String,
           style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
         ),
         onTap: () {
-           Navigator.push(context, MaterialPageRoute(builder: (_) => record['page']));
+          Navigator.push(
+              context, MaterialPageRoute(builder: (_) => record['page']));
         },
       ),
     );

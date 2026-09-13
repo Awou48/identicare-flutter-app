@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Baris label/nilai untuk langkah Periksa Ulang Data.
-/// Mengikuti bentuk visual _buildInfoRow di profile_page.dart.
 class DataReviewTile extends StatelessWidget {
   const DataReviewTile({
     super.key,
@@ -17,8 +15,6 @@ class DataReviewTile extends StatelessWidget {
   final IconData? icon;
   final bool highlight;
 
-  /// Untuk nomor BPJS dan NIK bertopeng, supaya digitnya sejajar dan mudah
-  /// diperiksa sekilas.
   final bool monospace;
 
   @override
@@ -48,7 +44,9 @@ class DataReviewTile extends StatelessWidget {
                 fontSize: 14,
                 fontFamily: monospace ? 'monospace' : null,
                 letterSpacing: monospace ? 0.5 : null,
-                color: highlight ? theme.colorScheme.primary : const Color(0xFF1E293B),
+                color: highlight
+                    ? theme.colorScheme.primary
+                    : const Color(0xFF1E293B),
               ),
             ),
           ),
@@ -58,7 +56,6 @@ class DataReviewTile extends StatelessWidget {
   }
 }
 
-/// Kartu ringkas hasil satu faktor biometrik.
 class BiometricResultCard extends StatelessWidget {
   const BiometricResultCard({
     super.key,
@@ -74,8 +71,6 @@ class BiometricResultCard extends StatelessWidget {
   final IconData? icon;
   final String? detail;
 
-  /// Catatan yang harus terlihat walaupun langkahnya lolos - mis. sidik jari
-  /// terverifikasi tanpa pengikatan perangkat keras.
   final String? warning;
 
   @override
@@ -90,26 +85,33 @@ class BiometricResultCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon ?? (passed ? Icons.check_circle : Icons.cancel), color: color, size: 22),
+          Icon(icon ?? (passed ? Icons.check_circle : Icons.cancel),
+              color: color, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                Text(title,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 14)),
                 if (detail != null)
-                  Text(detail!, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                  Text(detail!,
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.grey.shade700)),
                 if (warning != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline, size: 12, color: Color(0xFFF9AB00)),
+                        const Icon(Icons.info_outline,
+                            size: 12, color: Color(0xFFF9AB00)),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             warning!,
-                            style: const TextStyle(fontSize: 11, color: Color(0xFFB06000)),
+                            style: const TextStyle(
+                                fontSize: 11, color: Color(0xFFB06000)),
                           ),
                         ),
                       ],

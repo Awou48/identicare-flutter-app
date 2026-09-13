@@ -1,8 +1,3 @@
-/// Data langkah 3 (Periksa Ulang Data).
-///
-/// Ini titik pertama alur yang menampilkan data peserta sebenarnya, dan hanya
-/// setelah KEDUA faktor biometrik lolos. Sebelum itu server hanya mengirim versi
-/// bertopeng. NIK pun tetap dimasking di sini.
 library;
 
 class PesertaFull {
@@ -102,19 +97,20 @@ class ReviewData {
   });
 
   factory ReviewData.fromJson(Map<String, dynamic> json) {
-    final bio = (json['biometrik'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final bio =
+        (json['biometrik'] as Map?)?.cast<String, dynamic>() ?? const {};
     return ReviewData(
       peserta: PesertaFull.fromJson(json['peserta'] as Map<String, dynamic>),
       claim: ReviewClaim.fromJson(json['claim'] as Map<String, dynamic>),
       wajah: (bio['wajah'] as Map?)?.cast<String, dynamic>() ?? const {},
-      sidikJari: (bio['sidik_jari'] as Map?)?.cast<String, dynamic>() ?? const {},
+      sidikJari:
+          (bio['sidik_jari'] as Map?)?.cast<String, dynamic>() ?? const {},
       risk: (json['risk'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
   }
 }
 
 class CommitResult {
-  /// APPROVED | REVIEW | REJECTED
   final String decision;
   final String? receiptNo;
   final DateTime decidedAt;

@@ -1,11 +1,3 @@
-"""Step 1 - Scan Wajah.
-
-Transport is multipart, not base64 JSON. Base64 inflates every JPEG by 33% (on a
-3-frame burst that is roughly 120 KB of extra Wi-Fi per attempt), forces an extra
-encode/decode pass on both ends, and makes the server buffer the whole request as
-a Python string before parsing. UploadFile streams.
-"""
-
 from __future__ import annotations
 
 import json
@@ -32,22 +24,12 @@ CHALLENGE_TTL_SECONDS = 120
 
 
 @router.post("/{session_id}/liveness/challenge", response_model=LivenessChallenge)
-async def issue_challenge(
-    session_id: str, db: DbDep, token: SessionTokenDep
-) -> LivenessChallenge:
-    """Issue a random, single-use liveness challenge.
-
-    This is what actually defeats replay. The direction is chosen server-side
-    AFTER the client asks, so a pre-recorded video cannot already satisfy it.
-    """
+async def issue_challenge(session_id: str, db: DbDep, token: SessionTokenDep) -> LivenessChallenge:
+    """Issue a random, single-use liveness challenge."""
     session = await session_service.load(db, session_id, token)
     await session_service.assert_live(db, session)
     session_service.require_state(session, "face")
 
-    # SECURITY: if a live challenge already exists, return THAT one. Minting a
-    # fresh random challenge on every call would let an attacker holding a
-    # pre-recorded "turn left" video simply re-request until the server happened
-    # to ask for turn_left - which defeats the entire point of the challenge.
     existing = session.get("steps", {}).get("face", {})
     prior_expiry = existing.get("challenge_expires_at")
     if prior_expiry is not None and prior_expiry.tzinfo is None:
@@ -123,8 +105,6 @@ async def submit_face(
 
     challenge = session.get("steps", {}).get("face", {}).get("challenge")
 
-    # All CPU-bound work happens in one worker-thread hop so the event loop stays
-    # responsive while ONNX runs.
     analyses, probe, live_result = await run_in_threadpool(
         _analyse, engine, payloads, challenge, settings.liveness_min_score
     )
@@ -154,8 +134,6 @@ async def submit_face(
             liveness_info=_liveness_info(live_result),
             started=started,
             request_id=request_id,
-            # The per-signal breakdown is what makes a liveness failure
-            # diagnosable after the fact. Score alone ("0.49") says nothing.
             extra={
                 "liveness_score": live_result.score,
                 "liveness_signals": {k: round(float(v), 4) for k, v in live_result.signals.items()},
@@ -188,8 +166,6 @@ async def submit_face(
             extra={"match_score": round(score, 4)},
         )
 
-    # 1:N collision sweep. Runs on rotated search vectors, so nothing is
-    # decrypted here - see security/rotation.py.
     rot = database.get_rotation()
     collisions = await matcher.sweep_collisions(
         db,
@@ -216,17 +192,11 @@ async def submit_face(
         "template_id": template["_id"],
         "latency_ms": latency_ms,
         "quality": quality.model_dump(),
-        "collisions": [
-            {"peserta_id": str(c["peserta_id"]), "score": c["score"]} for c in collisions
-        ],
+        "collisions": [{"peserta_id": str(c["peserta_id"]), "score": c["score"]} for c in collisions],
         "front_camera": meta_obj.get("front_camera"),
     }
     await session_service.advance(db, session, "face", step_data)
 
-    # Mint a FRESH nonce for the fingerprint step rather than reusing the one
-    # issued at session start. That one has a 120s TTL and the face step can
-    # easily outlive it (retries, a slow upload), which would strand the user at
-    # step 2 with NONCE_EXPIRED through no fault of their own.
     fp_nonce = session_service.new_nonce()
     nonce_expires = datetime.now(UTC) + timedelta(seconds=settings.nonce_ttl_seconds)
     await nonce_service.issue(
@@ -274,14 +244,8 @@ async def submit_face(
     )
 
 
-# --------------------------------------------------------------------------- #
 def _analyse(engine, payloads, challenge, liveness_threshold):
-    """Detect on every frame, embed only the best one.
-
-    Embedding is by far the most expensive stage (~90 ms vs ~20 ms for
-    detection), so running it once instead of three times is the single biggest
-    latency win in the whole request.
-    """
+    """Detect on every frame, embed only the best one."""
     analyses: list[FrameAnalysis] = []
     usable_frames, usable_faces = [], []
 
@@ -327,9 +291,7 @@ def _analyse(engine, payloads, challenge, liveness_threshold):
     if not usable_faces:
         return analyses, None, None
 
-    live_result = liveness.get_backend().evaluate(
-        usable_frames, usable_faces, challenge, liveness_threshold
-    )
+    live_result = liveness.get_backend().evaluate(usable_frames, usable_faces, challenge, liveness_threshold)
 
     best = max(
         range(len(usable_faces)),
@@ -340,8 +302,7 @@ def _analyse(engine, payloads, challenge, liveness_threshold):
 
 
 def _first_failure(analyses: list[FrameAnalysis]) -> str | None:
-    """If no frame was usable, report the most common reason - that is the one
-    the user can actually act on."""
+    """If no frame was usable, report the most common reason - the one the user can act on."""
     if any(a.ok for a in analyses):
         return None
     codes = [a.error_code for a in analyses if a.error_code]
@@ -379,11 +340,6 @@ def _liveness_info(result) -> LivenessInfo | None:
     )
 
 
-# Failures that say nothing about WHO is in front of the camera. A blurry
-# frame is not an impostor attempt; charging it against the three identity
-# attempts turned "hold the phone steadier" into "session rejected, ask a
-# nurse" on the third shaky capture. These get their own, larger budget - still
-# bounded, so a session cannot be used to probe the detector indefinitely.
 QUALITY_CODES = frozenset(
     {"LOW_QUALITY_BLUR", "LOW_QUALITY_LIGHT", "NO_FACE_DETECTED", "FACE_TOO_SMALL", "MULTIPLE_FACES"}
 )
@@ -401,12 +357,7 @@ async def _fail(
     request_id: str,
     extra: dict | None = None,
 ) -> FaceStepResponse:
-    """A failed face step is HTTP 200 with result='failed'.
-
-    It is a business outcome the UI must render with a score and a retry count,
-    not a protocol error. Returning 4xx here would have Flutter's generic error
-    handler swallow it and show "terjadi kesalahan" instead of the real reason.
-    """
+    """A failed face step is HTTP 200 with result='failed'."""
     latency_ms = int((time.perf_counter() - started) * 1000)
     extra = extra or {}
     is_quality = code in QUALITY_CODES
@@ -440,8 +391,6 @@ async def _fail(
         request_id=request_id,
     )
 
-    # What the user sees as "sisa percobaan" is always the identity budget.
-    # A quality retry does not move it.
     if is_quality:
         attempts = updated["steps"]["face"].get("attempts", 0)
     attempts_left = max(0, settings.face_max_attempts - attempts)

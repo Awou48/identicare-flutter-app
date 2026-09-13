@@ -5,11 +5,6 @@ import 'package:identicare_mobile/widgets/verification/status_badge.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-/// Jejak audit lengkap satu sesi verifikasi, termasuk percobaan yang GAGAL.
-///
-/// Kegagalan sengaja ditampilkan: percobaan wajah yang gagal justru sinyal yang
-/// paling berguna untuk mendeteksi fraud, dan menyembunyikannya akan membuat
-/// jejak audit ini tidak ada gunanya.
 class VerificationDetailPage extends StatefulWidget {
   const VerificationDetailPage({super.key, required this.sessionId});
 
@@ -66,13 +61,16 @@ class _VerificationDetailPageState extends State<VerificationDetailPage> {
     }
 
     final data = _data!;
-    final session = (data['session'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final session =
+        (data['session'] as Map?)?.cast<String, dynamic>() ?? const {};
     final result = (session['result'] as Map?)?.cast<String, dynamic>();
     final risk = (session['risk'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final lokasi = (data['lokasi'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final lokasi =
+        (data['lokasi'] as Map?)?.cast<String, dynamic>() ?? const {};
     final claim = (data['claim'] as Map?)?.cast<String, dynamic>() ?? const {};
     final events = ((data['events'] as List?) ?? const [])
-        .map((e) => VerificationEvent.fromJson((e as Map).cast<String, dynamic>()))
+        .map((e) =>
+            VerificationEvent.fromJson((e as Map).cast<String, dynamic>()))
         .toList();
 
     return ListView(
@@ -92,20 +90,26 @@ class _VerificationDetailPageState extends State<VerificationDetailPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Hasil', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('Hasil',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
                     StatusBadge(
-                      status: result?['decision'] as String? ?? session['status'] as String? ?? '',
+                      status: result?['decision'] as String? ??
+                          session['status'] as String? ??
+                          '',
                       compact: true,
                     ),
                   ],
                 ),
                 const Divider(height: 20),
                 if (result?['receipt_no'] != null)
-                  _kv('Nomor Bukti', '${result!['receipt_no']}', monospace: true),
-                if (lokasi['label'] != null) _kv('Lokasi', '${lokasi['label']}'),
+                  _kv('Nomor Bukti', '${result!['receipt_no']}',
+                      monospace: true),
+                if (lokasi['label'] != null)
+                  _kv('Lokasi', '${lokasi['label']}'),
                 if (claim['poli'] != null && '${claim['poli']}'.isNotEmpty)
                   _kv('Poli', '${claim['poli']}'),
-                _kv('Skor Risiko', '${risk['score'] ?? 0}/100 (${risk['band'] ?? 'LOW'})'),
+                _kv('Skor Risiko',
+                    '${risk['score'] ?? 0}/100 (${risk['band'] ?? 'LOW'})'),
               ],
             ),
           ),
@@ -113,7 +117,8 @@ class _VerificationDetailPageState extends State<VerificationDetailPage> {
         const SizedBox(height: 16),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 4),
-          child: Text('Jejak Audit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          child: Text('Jejak Audit',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         ),
         const SizedBox(height: 8),
         ...events.map(_eventTile),
@@ -146,7 +151,8 @@ class _VerificationDetailPageState extends State<VerificationDetailPage> {
       );
 
   Widget _eventTile(VerificationEvent event) {
-    final color = event.isFailure ? const Color(0xFFD93025) : const Color(0xFF34A853);
+    final color =
+        event.isFailure ? const Color(0xFFD93025) : const Color(0xFF34A853);
     final scores = event.scores.entries
         .where((e) => e.value != null)
         .map((e) => '${e.key} ${e.value}')
@@ -185,21 +191,27 @@ class _VerificationDetailPageState extends State<VerificationDetailPage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(event.stepLabel,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 13)),
                     Text(
                       DateFormat('HH:mm:ss').format(event.at.toLocal()),
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey.shade600),
                     ),
                   ],
                 ),
                 if (event.errorCode != null)
                   Text(event.errorCode!,
-                      style: const TextStyle(fontSize: 11, color: Color(0xFFD93025))),
+                      style: const TextStyle(
+                          fontSize: 11, color: Color(0xFFD93025))),
                 if (scores.isNotEmpty)
-                  Text(scores, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  Text(scores,
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey.shade700)),
                 if (event.latencyMs != null)
                   Text('${event.latencyMs} ms',
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                      style:
+                          TextStyle(fontSize: 10, color: Colors.grey.shade500)),
               ],
             ),
           ),

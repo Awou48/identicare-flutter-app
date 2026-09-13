@@ -3,11 +3,6 @@ import 'package:identicare_mobile/services/biometric_attestation_service.dart';
 import 'package:identicare_mobile/state/verification_flow_controller.dart';
 import 'package:provider/provider.dart';
 
-/// Langkah 2 - Scan Sidik Jari.
-///
-/// Sidik jarinya tidak pernah meninggalkan perangkat. Sensor hanya membuka
-/// akses ke kunci penandatangan; yang dikirim ke server adalah tanda tangan atas
-/// nonce sekali pakai.
 class Step2FingerprintPage extends StatefulWidget {
   const Step2FingerprintPage({super.key});
 
@@ -58,7 +53,10 @@ class _Step2FingerprintPageState extends State<Step2FingerprintPage> {
               height: 120,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.08),
               ),
               child: Icon(
                 Icons.fingerprint,
@@ -81,7 +79,6 @@ class _Step2FingerprintPageState extends State<Step2FingerprintPage> {
             style: TextStyle(color: Colors.grey.shade700),
           ),
           const SizedBox(height: 24),
-
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -91,7 +88,8 @@ class _Step2FingerprintPageState extends State<Step2FingerprintPage> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.lock_outline, size: 18, color: Color(0xFF0A7E8C)),
+                const Icon(Icons.lock_outline,
+                    size: 18, color: Color(0xFF0A7E8C)),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -105,9 +103,9 @@ class _Step2FingerprintPageState extends State<Step2FingerprintPage> {
             ),
           ),
           const SizedBox(height: 20),
-
           if (!availability.available)
-            _Unavailable(reason: availability.reason ?? 'Sensor tidak tersedia.')
+            _Unavailable(
+                reason: availability.reason ?? 'Sensor tidak tersedia.')
           else ...[
             if (controller.error != null) ...[
               Container(
@@ -118,10 +116,12 @@ class _Step2FingerprintPageState extends State<Step2FingerprintPage> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline, color: Color(0xFFD93025), size: 18),
+                    const Icon(Icons.error_outline,
+                        color: Color(0xFFD93025), size: 18),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(controller.error!, style: const TextStyle(fontSize: 13)),
+                      child: Text(controller.error!,
+                          style: const TextStyle(fontSize: 13)),
                     ),
                   ],
                 ),
@@ -132,7 +132,8 @@ class _Step2FingerprintPageState extends State<Step2FingerprintPage> {
               const Text(
                 'Batas percobaan tercapai. Sesi verifikasi ditolak.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFFD93025), fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    color: Color(0xFFD93025), fontWeight: FontWeight.bold),
               )
             else
               FilledButton.icon(
@@ -146,7 +147,8 @@ class _Step2FingerprintPageState extends State<Step2FingerprintPage> {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.fingerprint),
                 label: Text(controller.isBusy
@@ -175,18 +177,22 @@ class _Unavailable extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFF9AB00).withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFF9AB00).withValues(alpha: 0.4)),
+        border:
+            Border.all(color: const Color(0xFFF9AB00).withValues(alpha: 0.4)),
       ),
       child: Column(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Color(0xFFF9AB00), size: 32),
+          const Icon(Icons.warning_amber_rounded,
+              color: Color(0xFFF9AB00), size: 32),
           const SizedBox(height: 8),
           const Text(
             'Sensor sidik jari tidak tersedia',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
-          Text(reason, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13)),
+          Text(reason,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13)),
           const SizedBox(height: 10),
           Text(
             'Emulator tidak memiliki sensor sidik jari sungguhan. '

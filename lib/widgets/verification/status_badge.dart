@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Lencana keputusan: APPROVED hijau, REVIEW kuning, REJECTED merah.
 class StatusBadge extends StatelessWidget {
   const StatusBadge({super.key, required this.status, this.compact = false});
 

@@ -1,28 +1,3 @@
-"""Enrolment identity-proofing.
-
-THE HOLE THIS CLOSES. Before this, `POST /enrollment/face` needed only one
-shared static API key and performed NO duplicate check. An insider could enrol
-their own face against someone else's `no_bpjs`, and from then on every
-verification would succeed *correctly* - the fraud becomes permanently
-invisible, because the biometric genuinely matches the template on file. Every
-other control in this system sits on top of enrolment, so poisoning it defeats
-all of them at once.
-
-Three controls, each independently useful:
-
-  1. MANDATORY 1:N de-duplication. No template is activated until the face has
-     been swept against every active template. A hit under a different no_bpjs
-     is rejected outright and raises a critical fraud signal. The sweep function
-     already existed in matcher.py - it simply was never called on this path.
-  2. FOUR-EYES. Approval requires a different staff_id from the capturer,
-     enforced server-side. A single compromised account cannot self-approve.
-  3. COOLING-OFF. A template younger than the configured window cannot support a
-     high-value claim. This bounds the damage even if 1 and 2 are both defeated.
-
-Assurance levels are recorded on the template, and the claim ceiling is applied
-per level, so a self-asserted identity cannot underwrite a large claim.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -46,16 +21,12 @@ ASSURANCE_SELF = "SELF_ASSERTED"
 ASSURANCE_DUKCAPIL = "DUKCAPIL_VERIFIED"
 ASSURANCE_ASSISTED = "ASSISTED_DUAL_CONTROL"
 
-# Claim ceiling in rupiah per assurance level. A weakly-proven identity may use
-# the system, but cannot underwrite an expensive claim.
 CLAIM_CEILING: dict[str, int] = {
     ASSURANCE_SELF: 500_000,
-    ASSURANCE_DUKCAPIL: 0,  # 0 == no ceiling
+    ASSURANCE_DUKCAPIL: 0,
     ASSURANCE_ASSISTED: 0,
 }
 
-# Levels that a single operator may approve alone. Assisted enrolment is the one
-# that carries the strongest claim, so it is the one that must be witnessed.
 REQUIRES_SECOND_STAFF = {ASSURANCE_ASSISTED}
 
 STATUS_DRAFT = "draft"
@@ -81,13 +52,10 @@ class DedupOutcome:
             "checked_at": datetime.now(UTC),
             "candidates_checked": self.checked,
             "top_score": self.top_score,
-            "hits": [
-                {"peserta_id": str(h["peserta_id"]), "score": h["score"]} for h in self.hits[:5]
-            ],
+            "hits": [{"peserta_id": str(h["peserta_id"]), "score": h["score"]} for h in self.hits[:5]],
         }
 
 
-# --------------------------------------------------------------------------- #
 async def create_request(
     db: AsyncDatabase,
     *,
@@ -122,14 +90,10 @@ async def create_request(
     try:
         result = await db.enrollment_requests.insert_one(doc)
     except DuplicateKeyError as exc:
-        # The partial unique index fired: another enrolment for this participant
-        # is already open. Racing two enrolments could let both clear the dedup
-        # gate against a state that no longer holds by the time they commit.
         raise ApiError(
             "ENROLLMENT_IN_PROGRESS",
             409,
-            message="Sudah ada permohonan pendaftaran biometrik yang sedang berjalan "
-            "untuk peserta ini.",
+            message="Sudah ada permohonan pendaftaran biometrik yang sedang berjalan untuk peserta ini.",
         ) from exc
     doc["_id"] = result.inserted_id
     return doc
@@ -144,20 +108,9 @@ async def run_dedup_gate(
     peserta_id: ObjectId | None,
     threshold: float,
 ) -> DedupOutcome:
-    """The gate. Sweep this face against every active template.
-
-    Runs on rotated search vectors, so nothing is decrypted - see
-    security/rotation.py. A hit belonging to a DIFFERENT participant means this
-    face is already enrolled under another BPJS number, which is the
-    FACE_COLLISION fraud case caught at the only moment it can still be
-    prevented rather than merely detected.
-    """
-    hits = await matcher.sweep_collisions(
-        db, rot, probe, threshold=threshold, exclude_peserta_id=peserta_id
-    )
-    total = await db.biometric_templates.count_documents(
-        {"modality": "face", "status": "active"}
-    )
+    """The gate. Sweep this face against every active template."""
+    hits = await matcher.sweep_collisions(db, rot, probe, threshold=threshold, exclude_peserta_id=peserta_id)
+    total = await db.biometric_templates.count_documents({"modality": "face", "status": "active"})
     outcome = DedupOutcome(
         passed=not hits,
         checked=total,
@@ -187,8 +140,7 @@ async def run_dedup_gate(
 async def raise_duplicate_signal(
     db: AsyncDatabase, *, request_id: ObjectId, no_bpjs: str, outcome: DedupOutcome
 ) -> None:
-    """A duplicate enrolment attempt is a critical fraud event in its own right,
-    whether or not it succeeded."""
+    """A duplicate enrolment attempt is a critical fraud event whether or not it succeeded."""
     if not outcome.hits:
         return
     top = outcome.hits[0]
@@ -222,12 +174,7 @@ async def approve(
     approver: StaffPrincipal,
     require_second_staff: bool,
 ) -> dict:
-    """Four-eyes approval.
-
-    The approver must be a different person from the capturer. This is checked
-    against the stored `captured_by`, not against anything the client sends -
-    a client-asserted "I am a different person" is worth nothing.
-    """
+    """Four-eyes approval."""
     request = await db.enrollment_requests.find_one({"_id": request_id})
     if not request:
         raise ApiError("ENROLLMENT_NOT_FOUND", 404)
@@ -295,9 +242,7 @@ async def reject(
     )
 
 
-async def mark_pending_approval(
-    db: AsyncDatabase, *, request_id: ObjectId, quality: dict[str, Any]
-) -> None:
+async def mark_pending_approval(db: AsyncDatabase, *, request_id: ObjectId, quality: dict[str, Any]) -> None:
     await db.enrollment_requests.update_one(
         {"_id": request_id},
         {
@@ -333,11 +278,7 @@ async def store_evidence(
     label: str,
     blob: bytes,
 ) -> None:
-    """Encrypt a KTP / BPJS card photo against the request document.
-
-    AAD binds the ciphertext to this request, so an evidence blob cannot be
-    lifted onto a different enrolment.
-    """
+    """Encrypt a KTP / BPJS card photo against the request document."""
     aad = crypto.build_aad(request_id, f"evidence_{label}", 1)
     await db.enrollment_requests.update_one(
         {"_id": request_id},
@@ -345,23 +286,17 @@ async def store_evidence(
     )
 
 
-# --------------------------------------------------------------------------- #
-# Claim ceiling / cooling-off - consumed by the session start path
-# --------------------------------------------------------------------------- #
 def ceiling_for(assurance: str | None) -> int:
-    """Templates predating this pipeline carry no assurance; treat them as the
-    weakest level rather than silently granting them full trust."""
+    """Templates predating this pipeline carry no assurance; treat them as the weakest level rather than
+    silently granting them full trust.
+    """
     return CLAIM_CEILING.get(assurance or ASSURANCE_SELF, CLAIM_CEILING[ASSURANCE_SELF])
 
 
 def check_claim_allowed(
     template: dict, estimasi_biaya: int, cooling_hours: int
 ) -> tuple[bool, str | None, dict[str, Any]]:
-    """Returns (allowed, error_code, details).
-
-    Two independent gates: the assurance ceiling, and a cooling-off window that
-    bounds the damage from an enrolment that was fraudulent but not yet detected.
-    """
+    """Returns (allowed, error_code, details)."""
     assurance = template.get("assurance")
     ceiling = ceiling_for(assurance)
     if ceiling and estimasi_biaya > ceiling:

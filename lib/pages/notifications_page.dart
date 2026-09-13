@@ -9,16 +9,6 @@ import 'package:identicare_mobile/widgets/common/app_components.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-/// Notifikasi.
-///
-/// Lonceng di beranda sebelumnya `onPressed: () {}`. Alih-alih memasang push
-/// notification (yang butuh FCM, token perangkat, dan backend pengirim), isinya
-/// diturunkan dari data yang SUDAH ada: hasil verifikasi terakhir, status
-/// pendaftaran biometrik, dan artikel baru.
-///
-/// Itu keputusan yang disengaja. Notifikasi yang mengarang isinya lebih buruk
-/// daripada tidak ada notifikasi; yang di sini semuanya dapat ditelusuri ke
-/// catatan nyata di server, dan setiap baris bisa dibuka ke sumbernya.
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
 
@@ -150,8 +140,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
     if (_items.isEmpty) {
       return AppEmptyState(
-        icon: _error != null ? Icons.cloud_off_rounded : Icons.notifications_none_rounded,
-        title: _error != null ? 'Tidak dapat memuat notifikasi' : 'Belum ada notifikasi',
+        icon: _error != null
+            ? Icons.cloud_off_rounded
+            : Icons.notifications_none_rounded,
+        title: _error != null
+            ? 'Tidak dapat memuat notifikasi'
+            : 'Belum ada notifikasi',
         message: _error != null
             ? 'Periksa koneksi server di menu Pengaturan.'
             : 'Pemberitahuan tentang verifikasi dan kesehatan Anda akan muncul di sini.',
@@ -182,7 +176,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
     } else if (item.article != null) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => ArticleDetailPage(slug: item.article!.slug)),
+        MaterialPageRoute(
+            builder: (_) => ArticleDetailPage(slug: item.article!.slug)),
       );
     }
   }
@@ -280,8 +275,10 @@ class _NotificationTile extends StatelessWidget {
                       ],
                       const SizedBox(height: 6),
                       Text(
-                        DateFormat('dd MMM yyyy · HH:mm', 'id_ID').format(item.at.toLocal()),
-                        style: const TextStyle(fontSize: 11, color: AppColors.ink500),
+                        DateFormat('dd MMM yyyy · HH:mm', 'id_ID')
+                            .format(item.at.toLocal()),
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.ink500),
                       ),
                     ],
                   ),
