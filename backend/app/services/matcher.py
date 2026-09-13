@@ -22,9 +22,26 @@ from app.services import audit
 log = logging.getLogger(__name__)
 
 
+# seed_peserta.py writes a random unit vector per participant so the encrypt/
+# rotate/search pipeline can be exercised before any real face exists. Those
+# rows are tagged by model name. They must never count as an enrolment: a
+# participant "enrolled" against noise is shown as ready on the home screen,
+# never offered self-enrolment, and then fails every match at cosine ~0.05 -
+# which is exactly what happened on the first device test.
+PLACEHOLDER_MODEL_PREFIX = "PLACEHOLDER"
+REAL_TEMPLATE_FILTER = {"model.name": {"$not": {"$regex": f"^{PLACEHOLDER_MODEL_PREFIX}"}}}
+
+
+def is_placeholder(template: dict | None) -> bool:
+    return bool(template) and str((template.get("model") or {}).get("name", "")).startswith(
+        PLACEHOLDER_MODEL_PREFIX
+    )
+
+
 async def get_active_template(db: AsyncDatabase, peserta_id: ObjectId) -> dict | None:
+    """The participant's live face template, or None. Placeholders are None."""
     return await db.biometric_templates.find_one(
-        {"peserta_id": peserta_id, "modality": "face", "status": "active"}
+        {"peserta_id": peserta_id, "modality": "face", "status": "active", **REAL_TEMPLATE_FILTER}
     )
 
 
@@ -168,7 +185,7 @@ async def _mongo_sweep(
     exclude_peserta_id=None,
     limit: int = 5000,
 ) -> list[dict]:
-    query: dict = {"modality": "face", "status": "active"}
+    query: dict = {"modality": "face", "status": "active", **REAL_TEMPLATE_FILTER}
     if exclude_peserta_id is not None:
         query["peserta_id"] = {"$ne": exclude_peserta_id}
 

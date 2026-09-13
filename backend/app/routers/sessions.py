@@ -23,13 +23,12 @@ from app.schemas.session import (
     SessionState,
 )
 from app.security import crypto
-from app.services import audit, fraud_rules, session_service
+from app.services import audit, fraud_rules, matcher, session_service
 from app.utils.errors import ApiError
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/verification", tags=["verification"])
 
-MAX_OPEN_SESSIONS_PER_HOUR = 5
 
 
 @router.post("/sessions", response_model=SessionCreated, status_code=201)
@@ -50,7 +49,9 @@ async def start_session(
             "PESERTA_NONAKTIF", 403, details={"status": peserta["status_kepesertaan"]}
         )
 
-    if not peserta.get("biometric_enrolled"):
+    # The template is the truth, not the peserta.biometric_enrolled flag: the
+    # flag is also set by seeded placeholder rows, which are not enrolments.
+    if await matcher.get_active_template(db, peserta["_id"]) is None:
         raise ApiError("BIOMETRIC_NOT_ENROLLED", 409)
 
     faskes = await db.facilities.find_one({"kode_faskes": payload.kode_faskes})
@@ -68,7 +69,7 @@ async def start_session(
     recent = await db.verification_sessions.count_documents(
         {"peserta_id": peserta["_id"], "created_at": {"$gte": since}}
     )
-    if recent >= MAX_OPEN_SESSIONS_PER_HOUR:
+    if recent >= settings.sessions_per_hour:
         raise ApiError("TOO_MANY_SESSIONS", 429, details={"sessions_last_hour": recent})
 
     session = await session_service.create(

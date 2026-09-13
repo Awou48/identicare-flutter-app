@@ -76,6 +76,10 @@ class AppConfig {
 
   /// Jeda antar frame dalam burst.
   static const Duration faceBurstInterval = Duration(milliseconds: 340);
+  // Koreografi liveness: waktu untuk menghadap lurus sebelum frame 1, dan
+  // waktu untuk menoleh setelah instruksi muncul, sebelum frame 2-3.
+  static const Duration faceNeutralHold = Duration(milliseconds: 900);
+  static const Duration faceChallengeHold = Duration(milliseconds: 1100);
 
   /// Sisi terpanjang gambar sebelum diunggah. Jangan kirim frame 12 MP:
   /// server hanya butuh wajah >= 112 px dan uploadnya jauh lebih lambat.

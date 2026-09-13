@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:identicare_mobile/models/review_data.dart';
+import 'package:identicare_mobile/models/verification_session.dart';
 import 'package:identicare_mobile/state/verification_flow_controller.dart';
 import 'package:identicare_mobile/widgets/verification/status_badge.dart';
 import 'package:provider/provider.dart';
@@ -22,7 +23,10 @@ class _Step4VerifyResultPageState extends State<Step4VerifyResultPage> {
   Widget build(BuildContext context) {
     final controller = context.watch<VerificationFlowController>();
 
-    if (!_committed && controller.commitResult == null && !controller.isBusy) {
+    // Sama seperti langkah 3: hanya commit ketika langkah ini yang aktif.
+    // IndexedStack membangun halaman ini sejak awal alur.
+    final active = controller.currentStep == SessionStep.commit;
+    if (active && !_committed && controller.commitResult == null && !controller.isBusy) {
       _committed = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => controller.commit());
     }

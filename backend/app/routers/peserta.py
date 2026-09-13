@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from app.deps import CurrentUserDep, DbDep, SettingsDep
 from app.security import crypto
-from app.services import audit
+from app.services import audit, matcher
 from app.utils.errors import ApiError
 
 log = logging.getLogger(__name__)
@@ -39,10 +39,7 @@ async def my_status(db: DbDep, user: CurrentUserDep) -> dict:
             message="Akun ini belum tertaut dengan data peserta BPJS.",
         )
 
-    template = await db.biometric_templates.find_one(
-        {"peserta_id": peserta["_id"], "modality": "face", "status": "active"},
-        {"created_at": 1, "assurance": 1, "model": 1},
-    )
+    template = await matcher.get_active_template(db, peserta["_id"])
 
     return {
         "status": "ok",
@@ -56,8 +53,9 @@ async def my_status(db: DbDep, user: CurrentUserDep) -> dict:
         "jenis_peserta": peserta.get("jenis_peserta"),
         "tunggakan_bulan": peserta.get("tunggakan_bulan", 0),
         "faskes_tingkat1": (peserta.get("faskes_tingkat1") or {}).get("nama"),
-        "biometric_enrolled": bool(peserta.get("biometric_enrolled")),
-        "biometric_enrolled_at": peserta.get("biometric_enrolled_at"),
+        # From the template, not the flag - see matcher.get_active_template.
+        "biometric_enrolled": template is not None,
+        "biometric_enrolled_at": (template or {}).get("created_at"),
         # Tingkat jaminan ditampilkan supaya pengguna tahu pendaftarannya
         # lemah (mandiri) atau kuat (terverifikasi Dukcapil / berbantuan).
         "assurance": (template or {}).get("assurance"),

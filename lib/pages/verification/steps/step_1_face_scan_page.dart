@@ -1,5 +1,6 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:identicare_mobile/config/app_config.dart';
 import 'package:identicare_mobile/models/step_results.dart';
 import 'package:identicare_mobile/pages/verification/override_request_page.dart';
 import 'package:identicare_mobile/services/face_capture_service.dart';
@@ -24,6 +25,7 @@ class _Step1FaceScanPageState extends State<Step1FaceScanPage>
   bool _permissionDenied = false;
   FaceOverlayState _overlay = FaceOverlayState.idle;
   int _framesTaken = 0;
+  _CapturePhase _phase = _CapturePhase.idle;
 
   @override
   void initState() {
@@ -66,20 +68,47 @@ class _Step1FaceScanPageState extends State<Step1FaceScanPage>
     super.dispose();
   }
 
+  /// Koreografi pengambilan gambar.
+  ///
+  /// Liveness dinilai dari PERUBAHAN antara frame pertama dan terakhir: kepala
+  /// harus lurus di frame 1 dan sudah menoleh di frame 3. Burst 3 frame dalam
+  /// 0,7 detik tepat saat tombol ditekan tidak memberi kesempatan untuk itu -
+  /// pengguna yang sudah menoleh sebelum menekan, atau yang baru membaca
+  /// instruksi sesudahnya, sama-sama menghasilkan dua frame yang identik dan
+  /// skor tantangan 0. Itu persis pola kegagalan 0,49-0,51 di uji perangkat.
+  ///
+  /// Jadi: minta wajah lurus, ambil frame 1; baru tampilkan instruksi, beri
+  /// waktu untuk menoleh, lalu ambil frame 2-3.
   Future<void> _scan() async {
     final controller = context.read<VerificationFlowController>();
     controller.clearError();
     setState(() {
       _overlay = FaceOverlayState.capturing;
       _framesTaken = 0;
+      _phase = _CapturePhase.neutral;
     });
 
     try {
+      await Future<void>.delayed(AppConfig.faceNeutralHold);
+      if (!mounted) return;
       final frames = await _capture.captureBurst(
+        frames: 1,
         onFrame: (index, total) {
           if (mounted) setState(() => _framesTaken = index);
         },
       );
+
+      setState(() => _phase = _CapturePhase.challenge);
+      await Future<void>.delayed(AppConfig.faceChallengeHold);
+      if (!mounted) return;
+      frames.addAll(await _capture.captureBurst(
+        frames: AppConfig.faceBurstFrames - 1,
+        onFrame: (index, total) {
+          if (mounted) setState(() => _framesTaken = 1 + index);
+        },
+      ));
+
+      setState(() => _phase = _CapturePhase.idle);
       final passed = await controller.submitFace(frames);
       if (!mounted) return;
       setState(() {
@@ -91,6 +120,23 @@ class _Step1FaceScanPageState extends State<Step1FaceScanPage>
         _overlay = FaceOverlayState.failure;
         _cameraError = 'Pengambilan gambar gagal: $e';
       });
+    }
+  }
+
+  String _instructionFor(VerificationFlowController controller, LivenessChallenge? challenge) {
+    switch (_phase) {
+      case _CapturePhase.neutral:
+        return 'Hadapkan wajah lurus ke kamera';
+      case _CapturePhase.challenge:
+        return '${challenge?.instruction ?? 'Gerakkan kepala'} - sekarang! '
+            '($_framesTaken/${AppConfig.faceBurstFrames})';
+      case _CapturePhase.idle:
+        if (controller.isBusy) return 'Memproses...';
+        // Sebelum menekan tombol, pengguna hanya perlu tahu apa yang akan
+        // diminta - bukan melakukannya sekarang.
+        return challenge == null
+            ? 'Posisikan wajah di dalam oval'
+            : 'Siap? Nanti Anda diminta: ${challenge.instruction.toLowerCase()}';
     }
   }
 
@@ -137,8 +183,12 @@ class _Step1FaceScanPageState extends State<Step1FaceScanPage>
             fit: StackFit.expand,
             children: [
               if (_capture.isReady)
+                // clipBehavior wajib: FittedBox.cover memperbesar preview
+                // melebihi area ini dan, tanpa klip, bagian lebihnya digambar
+                // DI ATAS indikator langkah dan judul halaman.
                 FittedBox(
                   fit: BoxFit.cover,
+                  clipBehavior: Clip.hardEdge,
                   child: SizedBox(
                     width: _capture.controller!.value.previewSize?.height ?? 480,
                     height: _capture.controller!.value.previewSize?.width ?? 640,
@@ -147,12 +197,7 @@ class _Step1FaceScanPageState extends State<Step1FaceScanPage>
                 ),
               FaceCameraOverlay(
                 state: _overlay,
-                instruction: controller.isBusy
-                    ? (_framesTaken > 0
-                        ? 'Mengambil gambar $_framesTaken/3...'
-                        : 'Memproses...')
-                    : (challenge?.instruction ??
-                        'Posisikan wajah di dalam oval'),
+                instruction: _instructionFor(controller, challenge),
               ),
             ],
           ),
@@ -167,6 +212,8 @@ class _Step1FaceScanPageState extends State<Step1FaceScanPage>
     );
   }
 }
+
+enum _CapturePhase { idle, neutral, challenge }
 
 class _Footer extends StatelessWidget {
   const _Footer({

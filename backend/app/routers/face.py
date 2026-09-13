@@ -154,7 +154,13 @@ async def submit_face(
             liveness_info=_liveness_info(live_result),
             started=started,
             request_id=request_id,
-            extra={"liveness_score": live_result.score},
+            # The per-signal breakdown is what makes a liveness failure
+            # diagnosable after the fact. Score alone ("0.49") says nothing.
+            extra={
+                "liveness_score": live_result.score,
+                "liveness_signals": {k: round(float(v), 4) for k, v in live_result.signals.items()},
+                "liveness_reason": live_result.reason,
+            },
         )
 
     kek = database.get_kek()

@@ -205,7 +205,9 @@ async def _run_enrollment(
     active = await db.biometric_templates.find_one(
         {"peserta_id": peserta["_id"], "modality": "face", "status": "active"}
     )
-    if active and not replace:
+    # A seeded placeholder is not an enrolment; enrolling over it is the normal
+    # first enrolment, not a replacement, so it needs no operator privilege.
+    if active and not replace and not matcher.is_placeholder(active):
         raise ApiError("ALREADY_ENROLLED", 409, details={"template_id": str(active["_id"])})
 
     if not payloads:
