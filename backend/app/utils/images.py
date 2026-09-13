@@ -15,8 +15,20 @@ import numpy as np
 MAX_BYTES = 5 * 1024 * 1024
 MAX_DIMENSION = 4096
 
-# Laplacian variance below this reads as motion blur or a defocused lens.
-MIN_BLUR_VAR = 100.0
+# Whole-frame Laplacian variance below this means the lens is covered or the
+# camera is completely defocused. It is a SANITY check, not a sharpness check.
+#
+# It used to be 100 - the number every blog post quotes - and that rejected
+# every real capture from the app: frames arrive downscaled to 640 px, and a
+# selfie against a plain wall at that size measures 20-80 even when perfectly
+# sharp (observed: 19, 38, 43, 70, 76 on a phone in good light). The frame is
+# mostly wall; the wall has no edges; the variance is low. Sharpness of the
+# part that matters is measured on the face crop after detection, see
+# MIN_FACE_SHARPNESS.
+MIN_BLUR_VAR = 8.0
+# Laplacian variance of the detected face crop. Skin, eyes and hair give a
+# sharp face at 150-300 px well over 50; motion blur drops it under 15.
+MIN_FACE_SHARPNESS = 20.0
 # Mean luma outside this band is too dark or blown out for reliable landmarks.
 MIN_BRIGHTNESS = 60.0
 MAX_BRIGHTNESS = 200.0

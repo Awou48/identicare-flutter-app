@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     face_collision_threshold: float = 0.55
     liveness_min_score: float = 0.70
     face_max_attempts: int = 3
+    # Blur / dark / no-face captures are charged here instead. Generous, because
+    # none of them is evidence about identity; bounded, so a session cannot be
+    # used to probe the detector forever.
+    face_max_quality_retries: int = 10
 
     # --- Enrolment identity proofing --- #
     # A template younger than this cannot underwrite a high-value claim. Bounds

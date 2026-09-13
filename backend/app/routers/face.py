@@ -309,6 +309,11 @@ def _analyse(engine, payloads, challenge, liveness_threshold):
             continue
 
         face.sharpness = images.region_sharpness(img, face.bbox)
+        if face.sharpness < images.MIN_FACE_SHARPNESS:
+            analyses.append(
+                FrameAnalysis(idx, False, "LOW_QUALITY_BLUR", face=face, blur_var=blur, brightness=bright)
+            )
+            continue
         analyses.append(FrameAnalysis(idx, True, None, face=face, blur_var=blur, brightness=bright))
         usable_frames.append(img)
         usable_faces.append(face)
@@ -368,6 +373,16 @@ def _liveness_info(result) -> LivenessInfo | None:
     )
 
 
+# Failures that say nothing about WHO is in front of the camera. A blurry
+# frame is not an impostor attempt; charging it against the three identity
+# attempts turned "hold the phone steadier" into "session rejected, ask a
+# nurse" on the third shaky capture. These get their own, larger budget - still
+# bounded, so a session cannot be used to probe the detector indefinitely.
+QUALITY_CODES = frozenset(
+    {"LOW_QUALITY_BLUR", "LOW_QUALITY_LIGHT", "NO_FACE_DETECTED", "FACE_TOO_SMALL", "MULTIPLE_FACES"}
+)
+
+
 async def _fail(
     db,
     session,
@@ -388,13 +403,15 @@ async def _fail(
     """
     latency_ms = int((time.perf_counter() - started) * 1000)
     extra = extra or {}
+    is_quality = code in QUALITY_CODES
 
     updated, attempts, exhausted = await session_service.record_failure(
         db,
         session,
         "face",
         {"error_code": code, "latency_ms": latency_ms, "quality": quality.model_dump(), **extra},
-        max_attempts=settings.face_max_attempts,
+        max_attempts=settings.face_max_quality_retries if is_quality else settings.face_max_attempts,
+        counter="quality_retries" if is_quality else "attempts",
     )
 
     await audit.log_event(
@@ -417,11 +434,15 @@ async def _fail(
         request_id=request_id,
     )
 
+    # What the user sees as "sisa percobaan" is always the identity budget.
+    # A quality retry does not move it.
+    if is_quality:
+        attempts = updated["steps"]["face"].get("attempts", 0)
     attempts_left = max(0, settings.face_max_attempts - attempts)
     message = message_for(code)
     if exhausted:
         message = f"{message} Batas percobaan tercapai, sesi ditolak."
-    elif attempts_left:
+    elif not is_quality and attempts_left:
         message = f"{message} Sisa percobaan: {attempts_left}."
 
     return FaceStepResponse(

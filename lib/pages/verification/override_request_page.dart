@@ -317,6 +317,7 @@ class _OverrideRequestPageState extends State<OverrideRequestPage> {
           ),
           const SizedBox(height: 8),
           Text(
+            'Layar ini untuk petugas faskes - serahkan ponsel ke petugas. '
             'Klaim yang disetujui lewat override ditandai '
             'APPROVED_WITH_OVERRIDE, bukan APPROVED, dan otomatis masuk '
             'antrean tinjauan BPJS. Frekuensi override per petugas dipantau.',

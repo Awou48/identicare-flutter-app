@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from bson import ObjectId
 from fastapi import APIRouter
@@ -11,9 +11,18 @@ from app import db as database
 from app.deps import DbDep, OperatorDep, StaffDep
 from app.security import staff_auth
 from app.security.staff_auth import ROLES
+from app.services import audit
 from app.utils.errors import ApiError
 
 router = APIRouter(prefix="/staff", tags=["staff"])
+
+# The override screen lives on the PARTICIPANT's phone, so the staff login
+# form is in the hands of the person with the most to gain from guessing a
+# nurse's password. Five wrong guesses per NIP lock that NIP for fifteen
+# minutes - for everyone, including the real owner. That is the point: a
+# locked-out nurse notices and reports it; a silently brute-forced one does not.
+LOGIN_MAX_FAILURES = 5
+LOGIN_LOCKOUT = timedelta(minutes=15)
 
 
 @router.post("/login")
@@ -28,16 +37,26 @@ async def login(payload: dict, db: DbDep) -> dict:
     if not nip or not password:
         raise ApiError("VALIDATION_ERROR", 422, details={"required": ["nip", "password"]})
 
-    staff = await db.staff.find_one({"nip": nip, "active": True})
-    unauthorized = ApiError(
-        "UNAUTHENTICATED", 401, message="NIP atau kata sandi salah."
+    now = datetime.now(UTC)
+    recent_failures = await db.audit_log.count_documents(
+        {"who": f"staff-login:{nip}", "what": "staff_login_failed", "at": {"$gte": now - LOGIN_LOCKOUT}}
     )
+    if recent_failures >= LOGIN_MAX_FAILURES:
+        raise ApiError(
+            "TOO_MANY_ATTEMPTS",
+            429,
+            message="Terlalu banyak percobaan login. Akun dikunci 15 menit.",
+        )
+
+    staff = await db.staff.find_one({"nip": nip, "active": True})
+    unauthorized = ApiError("UNAUTHENTICATED", 401, message="NIP atau kata sandi salah.")
     if not staff or not staff_auth.verify_password(password, staff["password_hash"]):
+        # Keyed by NIP, not by account: an unknown NIP is counted too, so the
+        # lockout cannot be used to confirm which NIPs exist.
+        await audit.record(db, who=f"staff-login:{nip}", what="staff_login_failed", purpose="login_petugas")
         raise unauthorized
 
-    await db.staff.update_one(
-        {"_id": staff["_id"]}, {"$set": {"last_login": datetime.now(UTC)}}
-    )
+    await db.staff.update_one({"_id": staff["_id"]}, {"$set": {"last_login": datetime.now(UTC)}})
 
     token = staff_auth.issue_token(
         database.get_kek(),
@@ -83,9 +102,7 @@ async def create_staff(payload: dict, db: DbDep, _: OperatorDep) -> dict:
     if role not in ROLES:
         raise ApiError("VALIDATION_ERROR", 422, details={"role": role, "allowed": list(ROLES)})
     if len(password) < 8:
-        raise ApiError(
-            "VALIDATION_ERROR", 422, message="Kata sandi minimal 8 karakter."
-        )
+        raise ApiError("VALIDATION_ERROR", 422, message="Kata sandi minimal 8 karakter.")
 
     faskes_id = None
     if payload.get("kode_faskes"):
