@@ -11,6 +11,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Wajib untuk showDatePicker(locale: id_ID) dan label dialog Material dalam
+  # Bahasa Indonesia. Tanpa ini pemilih tanggal melempar
+  # "No MaterialLocalizations found for locale id_ID" saat runtime.
+  flutter_localizations:
+    sdk: flutter
   
   http: ^1.2.1
   provider: ^6.1.2
@@ -18,7 +23,7 @@ dependencies:
   cloud_firestore: ^4.17.5
   firebase_auth: ^4.20.0
   url_launcher: ^6.3.1
-  intl: ^0.19.0
+  intl: ^0.20.2
 
   # --- Verifikasi biometrik (Step 4) ---
   camera: ^0.11.0               # tangkap frame wajah

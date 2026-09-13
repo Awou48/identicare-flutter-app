@@ -69,6 +69,11 @@ class ArticlePage {
 /// Status peserta milik pengguna yang sedang login.
 class PesertaStatus {
   final String namaLengkap;
+
+  /// Nomor penuh. Server hanya mengembalikannya kepada pemiliknya sendiri
+  /// (dicari lewat firebase_uid), dan alur klaim membutuhkannya untuk memulai
+  /// sesi. Jangan pernah ditampilkan mentah di UI - pakai [noBpjsMasked].
+  final String noBpjs;
   final String noBpjsMasked;
   final String? statusKepesertaan;
   final int? kelasRawat;
@@ -84,6 +89,7 @@ class PesertaStatus {
 
   const PesertaStatus({
     required this.namaLengkap,
+    required this.noBpjs,
     required this.noBpjsMasked,
     required this.biometricEnrolled,
     this.statusKepesertaan,
@@ -97,6 +103,7 @@ class PesertaStatus {
 
   factory PesertaStatus.fromJson(Map<String, dynamic> json) => PesertaStatus(
         namaLengkap: json['nama_lengkap'] as String? ?? '',
+        noBpjs: json['no_bpjs'] as String? ?? '',
         noBpjsMasked: json['no_bpjs_masked'] as String? ?? '',
         biometricEnrolled: json['biometric_enrolled'] as bool? ?? false,
         statusKepesertaan: json['status_kepesertaan'] as String?,

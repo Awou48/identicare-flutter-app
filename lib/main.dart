@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:identicare_mobile/theme/app_theme.dart';
 import 'package:identicare_mobile/auth_wrapper.dart';
 import 'package:identicare_mobile/config/app_config.dart';
@@ -50,6 +51,11 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'IdentiCare',
         theme: buildAppTheme(),
+        // Seluruh UI berbahasa Indonesia; ini membuat widget bawaan Material
+        // (pemilih tanggal, dialog, tooltip) ikut berbahasa Indonesia.
+        locale: const Locale('id', 'ID'),
+        supportedLocales: const [Locale('id', 'ID'), Locale('en', 'US')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         home: const AuthWrapper(),
         debugShowCheckedModeBanner: false,
       ),

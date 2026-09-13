@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:identicare_mobile/models/verification_history.dart';
+import 'package:identicare_mobile/pages/verification/link_bpjs_page.dart';
 import 'package:identicare_mobile/pages/verification/verification_detail_page.dart';
 import 'package:identicare_mobile/services/verification_api_service.dart';
 import 'package:identicare_mobile/widgets/verification/status_badge.dart';
@@ -26,6 +27,7 @@ class _VerificationHistoryPageState extends State<VerificationHistoryPage> {
   bool _hasMore = false;
   bool _loading = false;
   String? _error;
+  bool _notLinked = false;
   String? _filter;
 
   @override
@@ -79,8 +81,9 @@ class _VerificationHistoryPageState extends State<VerificationHistoryPage> {
         setState(() {
           _loading = false;
           // PESERTA_NOT_FOUND berarti akun ini belum ditautkan ke nomor BPJS -
-          // bukan error, hanya keadaan yang perlu dijelaskan.
-          _error = f.errorCode == 'PESERTA_NOT_FOUND'
+          // bukan error, keadaan yang bisa diselesaikan pengguna di sini juga.
+          _notLinked = f.errorCode == 'PESERTA_NOT_FOUND';
+          _error = _notLinked
               ? 'Akun ini belum tertaut dengan data peserta BPJS.'
               : f.message;
         });
@@ -129,6 +132,21 @@ class _VerificationHistoryPageState extends State<VerificationHistoryPage> {
   }
 
   Widget _body() {
+    if (_notLinked && _items.isEmpty) {
+      return _Empty(
+        icon: Icons.link_rounded,
+        title: 'Akun belum tertaut BPJS',
+        message: 'Tautkan nomor BPJS Anda untuk melihat riwayat verifikasi.',
+        actionLabel: 'Tautkan Nomor BPJS',
+        onRetry: () async {
+          final linked = await Navigator.push<Map<String, dynamic>>(
+            context,
+            MaterialPageRoute(builder: (_) => const LinkBpjsPage()),
+          );
+          if (linked != null && mounted) _load(reset: true);
+        },
+      );
+    }
     if (_error != null && _items.isEmpty) {
       return _Empty(
         icon: Icons.cloud_off_outlined,
@@ -250,12 +268,14 @@ class _Empty extends StatelessWidget {
     required this.title,
     required this.message,
     this.onRetry,
+    this.actionLabel = 'Coba Lagi',
   });
 
   final IconData icon;
   final String title;
   final String message;
   final VoidCallback? onRetry;
+  final String actionLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -278,8 +298,8 @@ class _Empty extends StatelessWidget {
               const SizedBox(height: 20),
               FilledButton.icon(
                 onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Coba Lagi'),
+                icon: Icon(actionLabel == 'Coba Lagi' ? Icons.refresh : Icons.link_rounded),
+                label: Text(actionLabel),
               ),
             ],
           ],

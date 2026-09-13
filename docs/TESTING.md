@@ -108,9 +108,39 @@ berikutnya.
 
 | Langkah | Yang harus terjadi |
 |---|---|
-| Daftar akun baru dengan nama + nomor BPJS 13 digit (pakai `0001234567890`, salah satu yang di-seed) | Masuk ke Beranda, "Halo, NAMA" menampilkan nama Anda |
-| Tab **Profil** | Nama, email, nomor BPJS tampil. Kalau akun dibuat sebelum versi ini, halaman akan menampilkan "Menyiapkan profil..." sebentar lalu memperbaikinya sendiri |
-| Tab **Aktivitas → Verifikasi** | *"Belum ada riwayat verifikasi"* — bukan error. Ini benar untuk akun baru |
+| Daftar akun baru (email + kata sandi + nama) | Masuk ke Beranda, "Halo, NAMA" menampilkan nama Anda |
+| Lihat kartu status di bawah sapaan | **"Tautkan nomor BPJS Anda"** — bisa diketuk. Akun login (Firebase) dan data peserta (MongoDB) memang dua hal terpisah; langkah ini yang menjahitnya |
+| Tab **Profil** | Nama dan email tampil. Kalau akun dibuat sebelum versi ini, halaman akan menampilkan "Menyiapkan profil..." sebentar lalu memperbaikinya sendiri |
+| Tab **Aktivitas → Verifikasi** | *"Akun belum tertaut BPJS"* dengan tombol **Tautkan Nomor BPJS** — bukan "Coba Lagi" |
+
+### 3.1 Tautkan nomor BPJS — wajib sebelum verifikasi
+
+Ketuk kartu status di Beranda (atau tombol di Aktivitas, atau tombol yang
+muncul saat membuka Verifikasi Klaim BPJS — ketiganya membuka layar yang sama).
+Isi persis data yang di-seed:
+
+| Field | Nilai demo |
+|---|---|
+| Nomor Kartu BPJS | `0001234567890` |
+| NIK (KTP) | `3174050412010001` |
+| Tanggal Lahir | 4 Desember 2001 |
+
+Ini identitas **Marcel Iliantino** dari `seed_peserta.py`. Untuk akun kedua
+(uji wajah ganda di bagian 5) pakai Siti Nurhaliza: BPJS `0001234567891`,
+NIK `3174054503920002`, lahir 5 Maret 1992.
+
+| Langkah | Yang harus terjadi |
+|---|---|
+| Ketuk **Tautkan Akun** dengan data di atas | Kembali ke Beranda; kartu status berubah jadi *"Biometrik belum terdaftar"* |
+| Coba lagi dengan NIK salah (akun lain) | *"Data tidak cocok dengan catatan BPJS"* + *Sisa percobaan: 4*. Pesan **tidak** menyebut field mana yang salah — itu disengaja, supaya endpoint ini bukan oracle untuk mencocokkan NIK dengan nomor BPJS |
+| Salah 5 kali dalam sejam | `429` *"Terlalu banyak percobaan"*, bahkan untuk data yang benar |
+| Akun kedua mencoba menautkan `0001234567890` yang sudah tertaut | *"sudah tertaut ke akun lain"* — dan di server muncul sinyal fraud `ACCOUNT_LINK_CONFLICT` (lihat bagian 7) |
+
+Penautan hanya bisa **sekali**. Untuk memindahkan peserta ke akun lain saat
+uji coba, kosongkan field-nya lewat `mongosh`/Compass:
+`db.peserta.updateOne({no_bpjs:"0001234567890"},{$set:{firebase_uid:null}})`.
+
+| Tab **Aktivitas → Verifikasi** (setelah tertaut) | *"Belum ada riwayat verifikasi"* — bukan error. Ini benar untuk akun baru |
 | Ikon lonceng (Notifikasi) | Daftar notifikasi, atau "belum ada notifikasi" — bukan "Server tidak merespons" |
 | Artikel Kesehatan di Beranda | Daftar artikel muncul |
 
@@ -188,7 +218,7 @@ Alur yang lolos membuktikan sedikit. Yang penting: serangan ditolak.
 | **Batas percobaan** | Gagalkan langkah 1 tiga kali | *"Batas percobaan tercapai"* dengan tombol **Minta Override Petugas** — bukan jalan buntu |
 | **Override** | Ketuk tombol itu → login petugas → alasan → supervisor menyetujui | Keputusan `APPROVED_WITH_OVERRIDE`, dua sinyal fraud baru |
 | **Override oleh orang yang sama** | Petugas mencoba menyetujui permohonannya sendiri | Ditolak 403 — four-eyes dicek server, bukan klien |
-| **Daftar ulang wajah yang sama ke nomor BPJS lain** | Buat akun kedua dengan BPJS `0001234567891`, daftarkan wajah yang sama | `DUPLICATE_FACE` — kotak kuning, bukan merah, karena ini laporan fraud, bukan kesalahan pengguna |
+| **Daftar ulang wajah yang sama ke nomor BPJS lain** | Buat akun kedua, tautkan ke Siti Nurhaliza (data di 3.1), daftarkan wajah yang sama | `DUPLICATE_FACE` — kotak kuning, bukan merah, karena ini laporan fraud, bukan kesalahan pengguna |
 
 Untuk override, buat akun petugas dulu dari Swagger (`/docs`) →
 `POST /api/v1/staff` dengan `X-Api-Key: dev-operator-key`; buat satu `petugas`
