@@ -254,17 +254,14 @@ class _Header extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 40,
+                    height: 40,
+                    padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: AppColors.white.withValues(alpha: 0.2),
+                      color: AppColors.white,
                       borderRadius: AppRadius.smAll,
                     ),
-                    child: const Icon(
-                      Icons.verified_user_rounded,
-                      color: AppColors.white,
-                      size: AppIcons.md,
-                    ),
+                    child: Image.asset('assets/images/logo.png'),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   const Expanded(

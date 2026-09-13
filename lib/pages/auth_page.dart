@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:identicare_mobile/theme/app_theme.dart';
 import 'package:identicare_mobile/services/auth_service.dart';
 import 'package:provider/provider.dart';
 
@@ -76,8 +77,18 @@ class _AuthPageState extends State<AuthPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(Icons.local_hospital_outlined,
-                    size: 80, color: Theme.of(context).colorScheme.primary),
+                Image.asset('assets/images/logo.png', height: 120),
+                const SizedBox(height: 16),
+                const Text(
+                  'IdentiCare',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5,
+                    color: AppColors.brandDark,
+                  ),
+                ),
                 const SizedBox(height: 24),
                 Text(
                   _isLogin ? 'Selamat Datang' : 'Buat Akun Baru',
