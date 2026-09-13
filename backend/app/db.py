@@ -23,7 +23,7 @@ async def connect(settings: Settings | None = None) -> AsyncDatabase:
     _db = _client[settings.mongo_db]
 
     _kek = crypto.load_kek(settings.kek_file)
-    _rotation = rotation.load_rotation(settings.rotation_file)
+    _rotation = rotation.load_rotation(settings.rotation_file, kek=_kek, dim=settings.face_embedding_dim)
     return _db
 
 

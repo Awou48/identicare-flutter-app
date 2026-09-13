@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -7,6 +8,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 ROTATION_ID = "rot-v1"
+log = logging.getLogger(__name__)
 HKDF_INFO = b"identicare-rotation-v1"
 
 
@@ -28,15 +30,19 @@ def save_rotation(matrix: np.ndarray, path: str | Path) -> None:
     np.save(path, matrix)
 
 
-def load_rotation(path: str | Path) -> np.ndarray:
+def load_rotation(path: str | Path, kek: bytes | None = None, dim: int = 512) -> np.ndarray:
+    """The rotation from `path`, or derived from `kek` when the file is absent."""
     path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(
-            f"Rotation matrix not found at {path}. Run: python scripts/gen_keys.py "
-            "(it is derived from the KEK, so regenerating from the same KEK "
-            "reproduces the identical matrix and existing search vectors stay valid)."
-        )
-    return np.load(path)
+    if path.exists():
+        return np.load(path)
+    if kek is not None:
+        log.warning("rotation file %s absent; deriving from the KEK", path)
+        return derive_rotation(kek, dim=dim)
+    raise FileNotFoundError(
+        f"Rotation matrix not found at {path}. Run: python scripts/gen_keys.py "
+        "(it is derived from the KEK, so regenerating from the same KEK "
+        "reproduces the identical matrix and existing search vectors stay valid)."
+    )
 
 
 def apply_rotation(matrix: np.ndarray, vec: np.ndarray) -> np.ndarray:
