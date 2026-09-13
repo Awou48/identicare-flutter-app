@@ -78,6 +78,7 @@ class AppGridTile extends StatelessWidget {
   final bool enabled;
 
   static const double _iconBox = 42;
+  static const double _borderWidth = 1;
   static const double _labelFontSize = 14;
   static const double _labelLineHeight = 1.3;
   static const int _labelLines = 2;
@@ -97,7 +98,13 @@ class AppGridTile extends StatelessWidget {
   /// langsung. Ini juga ikut membesar ketika pengguna memperbesar ukuran font
   /// perangkat, yang penting untuk peserta BPJS lanjut usia.
   static double extentFor(BuildContext context) =>
-      AppSpacing.lg * 2 + _iconBox + AppSpacing.md + _labelHeight(context);
+      // Border.all() sisi atas + bawah. Tanpa ini sel meluap tepat 2 px: batas
+      // 1 px itu digambar DI DALAM ukuran kotak, jadi ia ikut memakan tinggi.
+      _borderWidth * 2 +
+      AppSpacing.lg * 2 +
+      _iconBox +
+      AppSpacing.md +
+      _labelHeight(context);
 
   @override
   Widget build(BuildContext context) {
@@ -110,7 +117,7 @@ class AppGridTile extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: AppRadius.mdAll,
-            border: Border.all(color: AppColors.ink100),
+            border: Border.all(color: AppColors.ink100, width: _borderWidth),
           ),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),

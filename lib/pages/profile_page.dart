@@ -5,6 +5,65 @@ import 'package:identicare_mobile/services/auth_service.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 
+class _MissingProfile extends StatefulWidget {
+  const _MissingProfile({required this.onCreate});
+
+  final Future<bool> Function() onCreate;
+
+  @override
+  State<_MissingProfile> createState() => _MissingProfileState();
+}
+
+class _MissingProfileState extends State<_MissingProfile> {
+  bool _creating = true;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _attempt();
+  }
+
+  Future<void> _attempt() async {
+    setState(() {
+      _creating = true;
+      _failed = false;
+    });
+    final ok = await widget.onCreate();
+    if (!mounted) return;
+    setState(() {
+      _creating = false;
+      _failed = !ok;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_creating) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Menyiapkan profil...'),
+          ],
+        ),
+      );
+    }
+    return AppEmptyState(
+      icon: Icons.person_off_outlined,
+      title: 'Profil belum tersedia',
+      message: _failed
+          ? 'Profil tidak dapat dibuat. Periksa aturan Firestore sudah '
+              'diterapkan: firebase deploy --only firestore:rules'
+          : 'Profil sedang dibuat.',
+      retryLabel: 'Coba Lagi',
+      onRetry: _attempt,
+    );
+  }
+}
+
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
@@ -44,16 +103,10 @@ class ProfilePage extends StatelessWidget {
             );
           }
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.person_off_outlined, color: Colors.grey, size: 60),
-                  SizedBox(height: 16),
-                  Text('Profil tidak ditemukan.', style: TextStyle(fontSize: 18, color: Colors.grey)),
-                  Text('Silakan coba login ulang.', style: TextStyle(color: Colors.grey)),
-                ],
-              ),
+            // Dokumen profil tidak ada. Buat, jangan hanya menyerah: stream di
+            // atas akan langsung memancarkan dokumen barunya begitu tertulis.
+            return _MissingProfile(
+              onCreate: () => authService.ensureProfileDocument(),
             );
           }
 
