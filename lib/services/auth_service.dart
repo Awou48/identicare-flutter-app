@@ -91,6 +91,41 @@ class AuthService with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Buat dokumen profil untuk akun yang tidak memilikinya.
+  ///
+  /// Ini terjadi kalau akun dibuat di luar alur pendaftaran aplikasi, atau
+  /// penulisan Firestore-nya gagal saat mendaftar. Halaman profil dulu hanya
+  /// berkata "Silakan coba login ulang" - yang tidak menolong, karena login
+  /// ulang tidak membuat dokumen. Sekarang profil dibuat dari data akun
+  /// Firebase Auth. displayName memakai bagian lokal email sebagai cadangan,
+  /// karena aturan Firestore menolak displayName kosong.
+  Future<bool> ensureProfileDocument() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    final ref = _firestore.collection('users').doc(user.uid);
+    try {
+      final snap = await ref.get();
+      if (snap.exists) return true;
+      final email = user.email ?? '';
+      final fallbackName =
+          email.contains('@') ? email.split('@').first : 'Pengguna';
+      await ref.set({
+        'email': email,
+        'displayName': (user.displayName ?? '').trim().isNotEmpty
+            ? user.displayName!.trim()
+            : fallbackName,
+        'phoneNumber': user.phoneNumber ?? '',
+        'noBpjs': '',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('ensureProfileDocument gagal: $e');
+      return false;
+    }
+  }
+
   /// Nomor BPJS pengguna, dibutuhkan untuk memulai sesi verifikasi.
   Future<String?> getNoBpjs() async {
     final user = _auth.currentUser;
