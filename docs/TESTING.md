@@ -199,11 +199,40 @@ diuji dengan wajah manusia sungguhan:
 
 ### 4.3 Langkah 2 — Sidik Jari
 
-1. Ketuk **Pindai Sidik Jari**. Prompt sensor Android muncul.
+1. Ketuk **Pindai Sidik Jari**. Prompt sensor Android muncul dengan judul
+   *"Verifikasi Sidik Jari"* dan subjudul *"Klaim BPJS ditandatangani di
+   dalam perangkat Anda"*.
 2. Sentuh sensor.
-3. **Yang harus terlihat:** lolos, dengan catatan *"perangkat belum terikat
-   TEE"* — ini jujur: jalur saat ini Tier A (HMAC), dan itu memang menaikkan
-   skor risiko 10 poin.
+3. **Yang harus terlihat:** lolos **tanpa** catatan "belum terikat TEE".
+   Ini Tier B: kunci EC P-256 dibuat di dalam TEE ponsel saat alur pertama
+   dimulai, dan perangkat keraslah yang menolak menandatangani sebelum sidik
+   jari valid — bukan kode aplikasi.
+
+Cek dari sisi server bahwa itu benar-benar terjadi:
+
+```
+db.devices.findOne({}, {trust_level:1, "attestation.security_level":1,
+  "attestation.key_matches":1, "attestation.challenge_ok":1,
+  "attestation.user_auth_required":1, "attestation.chain_length":1})
+```
+
+Yang diharapkan di ponsel biasa: `trust_level: "hardware"`, `security_level:
+"TEE"` (atau `STRONGBOX` di Pixel/Samsung kelas atas), `key_matches: true`,
+`challenge_ok: true`, `user_auth_required: true`, `chain_length: 3-4`.
+Semua itu dibaca server dari **sertifikat yang diterbitkan TEE**, bukan dari
+klaim aplikasi. `chain_verified` tetap `false` — rantainya belum divalidasi
+sampai root Google; itu pekerjaan berikutnya, dan dokumen tidak berpura-pura
+sebaliknya.
+
+**Kalau muncul catatan "belum terikat TEE":** aplikasi jatuh ke Tier A (HMAC).
+Terjadi hanya kalau TEE secara struktural tidak tersedia (emulator, ponsel
+tanpa sidik jari terdaftar). Lihat `flutter run` log: baris *"Tier B tidak
+tersedia: ..."* menyebut alasannya.
+
+**Kalau "Sidik jari perangkat berubah":** Anda mendaftarkan sidik jari baru
+di ponsel. Android sengaja menghancurkan kuncinya (`setInvalidatedByBiometric
+Enrollment`). Kunci baru sudah dibuat — mulai ulang verifikasi dari Beranda
+supaya kunci publik barunya terdaftar.
 
 ### 4.4 Langkah 3 — Periksa Ulang Data
 

@@ -107,6 +107,11 @@ async def submit_fingerprint(
         outcome = attestation.verify_ec_p256(
             payload=canonical, signature=signature, public_key_der=bytes(public_key)
         )
+        # verify_ec_p256 proves the signature; what the KEY is worth was
+        # settled at enrolment from the attestation chain. Report that.
+        if outcome.ok:
+            level = (device.get("attestation") or {}).get("security_level", "SOFTWARE")
+            outcome = attestation.VerificationOutcome(True, level)
     else:
         secret_env = device.get("secret_enc")
         if not secret_env:
