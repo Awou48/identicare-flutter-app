@@ -225,12 +225,17 @@ async def record_failure(
     step_data: dict[str, Any],
     *,
     max_attempts: int,
+    counter: str = "attempts",
 ) -> tuple[dict, int, bool]:
-    """Increment the attempt counter. Returns (session, attempts_used, exhausted).
+    """Increment a failure counter. Returns (session, count, exhausted).
 
     When attempts run out the session is rejected outright rather than left open,
     so a brute-force attacker gets three tries and a permanent record, not an
     unbounded retry loop.
+
+    `counter` selects which budget the failure is charged to: "attempts" is the
+    identity budget (mismatch, liveness), "quality_retries" the capture budget
+    (blur, dark, no face). Both are bounded; only the first is a fraud signal.
     """
     now = datetime.now(UTC)
     payload = {f"steps.{step}.{k}": v for k, v in {**step_data, "status": "failed", "at": now}.items()}
@@ -238,10 +243,10 @@ async def record_failure(
 
     updated = await db.verification_sessions.find_one_and_update(
         {"_id": session["_id"]},
-        {"$set": payload, "$inc": {f"steps.{step}.attempts": 1}},
+        {"$set": payload, "$inc": {f"steps.{step}.{counter}": 1}},
         return_document=True,
     )
-    attempts = updated["steps"][step].get("attempts", 1)
+    attempts = updated["steps"][step].get(counter, 1)
     exhausted = attempts >= max_attempts
     if exhausted:
         await db.verification_sessions.update_one(

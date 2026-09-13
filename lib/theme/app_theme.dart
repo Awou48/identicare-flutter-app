@@ -130,11 +130,14 @@ ThemeData buildAppTheme() {
         side: const BorderSide(color: AppColors.ink100),
       ),
     ),
+    // Padding horizontal wajib ada. Tombol yang direntang selebar layar tidak
+    // peduli, tetapi tombol yang mengikuti lebar labelnya ("Login Petugas",
+    // "Ajukan Override") tampak sesak tanpa itu - teks menempel ke tepi.
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: AppColors.brand,
         foregroundColor: AppColors.white,
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg, horizontal: AppSpacing.xxl),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.smAll),
         textStyle: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600),
       ),
@@ -144,7 +147,7 @@ ThemeData buildAppTheme() {
         backgroundColor: AppColors.brand,
         foregroundColor: AppColors.white,
         elevation: 0,
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg, horizontal: AppSpacing.xxl),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.smAll),
         textStyle: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600),
       ),
@@ -153,7 +156,7 @@ ThemeData buildAppTheme() {
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.brand,
         side: const BorderSide(color: AppColors.ink300),
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg, horizontal: AppSpacing.xxl),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.smAll),
         textStyle: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600),
       ),
