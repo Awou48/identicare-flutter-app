@@ -9,34 +9,6 @@ import 'package:identicare_mobile/services/device_identity_service.dart';
 import 'package:identicare_mobile/services/keystore_signer.dart';
 import 'package:identicare_mobile/services/verification_api_service.dart';
 
-/// Langkah 2: sensor sidik jari perangkat.
-///
-/// PENTING soal apa yang benar-benar dibuktikan di sini.
-///
-/// `local_auth.authenticate()` hanya mengembalikan BOOLEAN. Boolean yang
-/// melintasi jaringan bukan faktor kedua: perangkat yang di-root atau APK yang
-/// dimodifikasi mengembalikan `true` secara cuma-cuma dan server tidak punya
-/// cara membedakannya. Karena itu prompt sidik jari di sini hanya menjadi
-/// GERBANG, dan yang dikirim ke server adalah TANDA TANGAN atas payload kanonik
-/// berisi nonce sekali pakai dari server.
-///
-///   Tier B (default di Android) - kunci EC P-256 yang dibuat DI DALAM TEE
-///     dengan setUserAuthenticationRequired(true). Android baru melepaskan
-///     kunci untuk menandatangani setelah sensor sidik jari berhasil - dipaksa
-///     oleh perangkat keras, bukan oleh kode aplikasi. Kuncinya tidak bisa
-///     diekstrak, dan rantai sertifikat attestation-nya dikirim ke server saat
-///     pendaftaran supaya server tahu tingkat keamanannya (TEE / StrongBox)
-///     dari sertifikat, bukan dari klaim aplikasi. Lihat KeystoreSigner.kt.
-///
-///   Tier A (cadangan) - HMAC-SHA256 dengan rahasia di secure storage. Dipakai
-///     hanya kalau Tier B secara STRUKTURAL tidak bisa (bukan Android, TEE tidak
-///     tersedia). Server mencatatnya sebagai SOFTWARE dan menaikkan sinyal
-///     fraud SOFTWARE_KEY_ONLY - sistem jujur tentang kekuatannya sendiri.
-///
-/// Pembatalan oleh pengguna atau sensor terkunci TIDAK memicu jatuh ke Tier A:
-/// itu akan menjadikan "tekan Batal" sebagai cara menurunkan tingkat keamanan.
-///
-/// Sidik jarinya sendiri tidak pernah meninggalkan perangkat, di kedua tier.
 class BiometricAttestationService {
   BiometricAttestationService(this._deviceIdentity);
 
@@ -44,8 +16,6 @@ class BiometricAttestationService {
   final LocalAuthentication _localAuth = LocalAuthentication();
   final KeystoreSigner _keystore = KeystoreSigner();
 
-  /// Kunci Tier B yang siap dipakai di perangkat ini, dibuat kalau belum ada.
-  /// Null berarti Tier B tidak tersedia secara struktural.
   GeneratedKey? _tierBKey;
   bool _tierBProbed = false;
 
@@ -82,14 +52,12 @@ class BiometricAttestationService {
     }
   }
 
-  /// Pastikan kunci TEE ada. Mengembalikan null kalau Tier B tidak bisa dipakai
-  /// di perangkat ini; alasannya dicatat ke log, bukan disembunyikan.
   Future<GeneratedKey?> _ensureTierBKey({bool regenerate = false}) async {
     if (!_keystore.isSupported) return null;
     if (_tierBProbed && !regenerate) return _tierBKey;
     _tierBProbed = true;
 
-    final alias = VerificationConstants.keyAlias;
+    const alias = VerificationConstants.keyAlias;
     final deviceUid = await _deviceIdentity.deviceUid();
     try {
       if (regenerate) await _keystore.deleteKey(alias);
@@ -100,11 +68,9 @@ class BiometricAttestationService {
           return existing;
         }
       }
-      // Tantangan attestation = device_uid: mengikat rantai sertifikat ke
-      // identitas perangkat yang didaftarkan. Bukan nonce server (belum ada
-      // pada saat ini), jadi server memeriksanya sebagai pengikatan, bukan
-      // sebagai bukti kesegaran.
-      _tierBKey = await _keystore.generateKey(alias, challenge: utf8.encode(deviceUid));
+
+      _tierBKey =
+          await _keystore.generateKey(alias, challenge: utf8.encode(deviceUid));
       debugPrint('kunci TEE dibuat: securityLevel=${_tierBKey!.securityLevel}');
       return _tierBKey;
     } on KeystoreException catch (e) {
@@ -114,7 +80,6 @@ class BiometricAttestationService {
     }
   }
 
-  /// Minta sidik jari, lalu tandatangani payload kanonik.
   Future<AttestationResult> authenticateAndSign({
     required String sessionId,
     required String nonce,
@@ -130,7 +95,6 @@ class BiometricAttestationService {
       timestamp: timestamp,
     );
 
-    // ---- Tier B ---------------------------------------------------------- //
     if (await _ensureTierBKey() != null) {
       tierB:
       {
@@ -149,14 +113,11 @@ class BiometricAttestationService {
           );
         } on KeystoreException catch (e) {
           if (e.code == 'KEY_INVALIDATED') {
-            // Sidik jari baru didaftarkan di perangkat; Android menghancurkan
-            // kuncinya. Buat kunci baru - pendaftaran ulang ke server terjadi
-            // saat alur berikutnya dimulai, jadi TANDA TANGAN INI akan ditolak
-            // KEY_MISMATCH. Itu benar: perangkat harus didaftar ulang dulu.
             await _ensureTierBKey(regenerate: true);
             return AttestationResult.failure(
               errorCode: 'KEY_MISMATCH',
-              message: 'Sidik jari perangkat berubah. Kunci dibuat ulang - mulai ulang verifikasi.',
+              message:
+                  'Sidik jari perangkat berubah. Kunci dibuat ulang - mulai ulang verifikasi.',
               detail: e.toString(),
             );
           }
@@ -174,7 +135,6 @@ class BiometricAttestationService {
       }
     }
 
-    // ---- Tier A ---------------------------------------------------------- //
     final bool authenticated;
     try {
       authenticated = await _localAuth.authenticate(
@@ -198,9 +158,6 @@ class BiometricAttestationService {
         ],
       );
     } on PlatformException catch (e) {
-      // Setiap kode punya artinya sendiri. Sebelumnya semuanya - termasuk
-      // kesalahan konfigurasi aplikasi - dilaporkan sebagai "dibatalkan",
-      // sehingga tidak ada yang bisa didiagnosis dari layar.
       return AttestationResult.failure(
         errorCode: _codeFor(e.code),
         message: _messageFor(e.code),
@@ -296,11 +253,6 @@ class BiometricAttestationService {
     }
   }
 
-  /// Payload pendaftaran perangkat untuk POST /enrollment/device.
-  ///
-  /// Tier B kalau kunci TEE bisa dibuat: kunci publik + rantai sertifikat
-  /// attestation, dikirim ulang setiap kali (upsert) supaya server yang
-  /// databasenya di-reset tetap tahu kunci ini.
   Future<Map<String, dynamic>> enrollmentPayload({String? firebaseUid}) async {
     final info = await _deviceIdentity.describe();
     final key = await _ensureTierBKey();
@@ -311,7 +263,8 @@ class BiometricAttestationService {
         'method': VerificationConstants.methodKeystore,
         'key_alias': VerificationConstants.keyAlias,
         'public_key_der_b64': key.publicKeyDerB64,
-        if (key.attestationChainB64.isNotEmpty) 'attestation_chain_b64': key.attestationChainB64,
+        if (key.attestationChainB64.isNotEmpty)
+          'attestation_chain_b64': key.attestationChainB64,
         'client_security_level': key.securityLevel,
         if (firebaseUid != null) 'firebase_uid': firebaseUid,
       };
@@ -350,7 +303,6 @@ class AttestationResult {
   final String? errorCode;
   final String? message;
 
-  /// Kode mentah dari platform - untuk log, bukan untuk pengguna.
   final String? detail;
 
   const AttestationResult._({
@@ -383,5 +335,6 @@ class AttestationResult {
     required String message,
     String? detail,
   }) =>
-      AttestationResult._(ok: false, errorCode: errorCode, message: message, detail: detail);
+      AttestationResult._(
+          ok: false, errorCode: errorCode, message: message, detail: detail);
 }

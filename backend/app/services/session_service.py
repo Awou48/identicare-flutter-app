@@ -1,17 +1,3 @@
-"""The verification session state machine.
-
-    created -> face_passed -> fingerprint_passed -> reviewed -> committed
-        \\____________________________________________________/
-                    -> rejected | expired | cancelled
-
-Why this lives on the server. If the four Flutter screens simply called four
-independent endpoints and tracked progress locally, an attacker would skip
-liveness by not calling it, or replay a passed face step onto someone else's
-claim. Every step endpoint is therefore guarded by require_state(), the client
-carries only {session_id, session_token}, and nothing security-relevant lives in
-app state. A killed app resumes exactly where it left off.
-"""
-
 from __future__ import annotations
 
 import secrets
@@ -24,7 +10,6 @@ from pymongo.asynchronous.database import AsyncDatabase
 from app.security import crypto
 from app.utils.errors import ApiError
 
-# state -> the step that may be POSTed next
 NEXT_STEP: dict[str, str | None] = {
     "created": "face",
     "face_passed": "fingerprint",
@@ -34,8 +19,6 @@ NEXT_STEP: dict[str, str | None] = {
     "rejected": None,
     "expired": None,
     "cancelled": None,
-    # The override path runs through its own endpoints, not through the step
-    # sequence, but it still passes require_state() so nothing can skip audit.
     "override_pending": None,
     "override_rejected": None,
 }
@@ -47,13 +30,8 @@ STEP_TO_STATE = {
     "commit": "committed",
 }
 
-# `rejected` is NO LONGER terminal: it is the entry point to the break-glass
-# path. A face that cannot be scanned because of bruising or burns must not be a
-# dead end - the proposal names exactly those cases, and turning those patients
-# away would deny care to the people the system claims to serve.
 TERMINAL = {"committed", "expired", "cancelled", "override_rejected"}
 
-# States from which a staff override may be requested.
 OVERRIDE_ELIGIBLE = {"rejected"}
 OVERRIDE_PENDING = "override_pending"
 
@@ -122,8 +100,6 @@ async def create(
     result = await db.verification_sessions.insert_one(doc)
     doc["_id"] = result.inserted_id
 
-    # The nonce is also stored in its own TTL collection with a unique _id, which
-    # is what makes consumption atomic and replay-proof.
     await db.nonces.insert_one(
         {
             "_id": nonce,
@@ -155,8 +131,9 @@ async def load(db: AsyncDatabase, session_id: str, token: str) -> dict:
 
 
 async def assert_live(db: AsyncDatabase, session: dict) -> dict:
-    """Expire the session if its clock ran out. 410 rather than 404: the resource
-    existed, the client just took too long, and the UI message differs."""
+    """Expire the session if its clock ran out. 410 rather than 404: the resource existed, the client just
+    took too long, and the UI message differs.
+    """
     if session["status"] in TERMINAL:
         if session["status"] == "expired":
             raise ApiError("SESSION_EXPIRED", 410)
@@ -195,16 +172,10 @@ async def advance(
     step: str,
     step_data: dict[str, Any],
 ) -> dict:
-    """Mark a step passed and move the session to the next state.
-
-    The update is conditional on the session still being in the state we read,
-    so two concurrent requests cannot both advance it.
-    """
+    """Mark a step passed and move the session to the next state."""
     now = datetime.now(UTC)
     new_status = STEP_TO_STATE[step]
-    payload = {
-        f"steps.{step}.{k}": v for k, v in {**step_data, "status": "passed", "at": now}.items()
-    }
+    payload = {f"steps.{step}.{k}": v for k, v in {**step_data, "status": "passed", "at": now}.items()}
     payload["status"] = new_status
     payload["updated_at"] = now
 
@@ -227,16 +198,7 @@ async def record_failure(
     max_attempts: int,
     counter: str = "attempts",
 ) -> tuple[dict, int, bool]:
-    """Increment a failure counter. Returns (session, count, exhausted).
-
-    When attempts run out the session is rejected outright rather than left open,
-    so a brute-force attacker gets three tries and a permanent record, not an
-    unbounded retry loop.
-
-    `counter` selects which budget the failure is charged to: "attempts" is the
-    identity budget (mismatch, liveness), "quality_retries" the capture budget
-    (blur, dark, no face). Both are bounded; only the first is a fraud signal.
-    """
+    """Increment a failure counter. Returns (session, count, exhausted)."""
     now = datetime.now(UTC)
     payload = {f"steps.{step}.{k}": v for k, v in {**step_data, "status": "failed", "at": now}.items()}
     payload["updated_at"] = now
@@ -287,12 +249,7 @@ async def next_receipt_seq(db: AsyncDatabase) -> int:
 
 
 def public_view(session: dict) -> dict:
-    """What the client is allowed to see about its own session.
-
-    Deliberately omits session_token and nonce - the client already holds those
-    from the create response, and echoing secrets back widens the blast radius of
-    any log or crash report that captures a response body.
-    """
+    """What the client is allowed to see about its own session."""
     return {
         "session_id": str(session["_id"]),
         "status": session["status"],

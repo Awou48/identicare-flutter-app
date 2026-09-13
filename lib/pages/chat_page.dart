@@ -9,19 +9,6 @@ import 'package:identicare_mobile/widgets/common/app_components.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-/// Konsultasi online.
-///
-/// Versi sebelumnya seluruhnya palsu: satu pesan pembuka hardcoded dan satu
-/// balasan tetap - "Baik, saya mengerti. Bisa ceritakan lebih detail?" - setelah
-/// jeda dua detik, sama persis apa pun yang diketik pengguna. Tidak ada yang
-/// tersimpan; menutup halaman menghapus semuanya.
-///
-/// Sekarang percakapan disimpan di Firestore `konsultasi_chat`, jadi riwayatnya
-/// bertahan. Yang TIDAK berubah: tidak ada dokter sungguhan di ujung sana.
-/// Backend telemedicine belum ada, jadi balasan otomatis diberi label jelas
-/// sebagai balasan otomatis, bukan disamarkan sebagai manusia. Membiarkan
-/// pengguna mengira sedang berbicara dengan dokter adalah hal yang berbahaya di
-/// aplikasi kesehatan.
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key, required this.doctor});
 
@@ -44,7 +31,8 @@ class _ChatPageState extends State<ChatPage> {
   String get _uid => context.read<AuthService>().currentUser?.uid ?? 'anon';
   String get _threadId {
     final uid = context.read<AuthService>().currentUser?.uid ?? 'anon';
-    final slug = _doctorName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
+    final slug =
+        _doctorName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
     return '${uid}_$slug';
   }
 
@@ -57,10 +45,11 @@ class _ChatPageState extends State<ChatPage> {
     super.dispose();
   }
 
-  CollectionReference<Map<String, dynamic>> get _messages => FirebaseFirestore.instance
-      .collection('konsultasi_chat')
-      .doc(_threadId)
-      .collection('messages');
+  CollectionReference<Map<String, dynamic>> get _messages =>
+      FirebaseFirestore.instance
+          .collection('konsultasi_chat')
+          .doc(_threadId)
+          .collection('messages');
 
   Future<void> _send({String? preset}) async {
     final text = (preset ?? _controller.text).trim();
@@ -95,11 +84,6 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  /// Balasan otomatis berbasis kata kunci.
-  ///
-  /// Sengaja dibuat kontekstual: keluhan darurat mendapat arahan darurat, bukan
-  /// kalimat basa-basi yang sama untuk semua masukan. Tetap ditandai sebagai
-  /// otomatis.
   void _scheduleAutoReply(String userText) {
     _typingTimer?.cancel();
     setState(() => _botTyping = true);
@@ -116,10 +100,7 @@ class _ChatPageState extends State<ChatPage> {
           'sender': 'bot',
           'timestamp': FieldValue.serverTimestamp(),
         });
-      } catch (_) {
-        // Balasan otomatis gagal tersimpan bukan hal yang perlu ditampilkan;
-        // pesan pengguna sendiri sudah aman.
-      }
+      } catch (_) {}
       if (mounted) {
         setState(() => _botTyping = false);
         _scrollToBottom();
@@ -131,20 +112,31 @@ class _ChatPageState extends State<ChatPage> {
     final lower = text.toLowerCase();
 
     const urgent = [
-      'nyeri dada', 'sesak', 'tidak sadar', 'pingsan', 'kejang',
-      'pendarahan', 'darah', 'stroke', 'lumpuh',
+      'nyeri dada',
+      'sesak',
+      'tidak sadar',
+      'pingsan',
+      'kejang',
+      'pendarahan',
+      'darah',
+      'stroke',
+      'lumpuh',
     ];
     if (urgent.any(lower.contains)) {
       return 'Keluhan yang Anda sebutkan dapat menandakan kondisi gawat darurat. '
           'Segera kunjungi IGD terdekat atau hubungi 119. Jangan menunggu balasan '
           'di aplikasi ini.\n\n(Balasan otomatis)';
     }
-    if (lower.contains('bpjs') || lower.contains('klaim') || lower.contains('verifikasi')) {
+    if (lower.contains('bpjs') ||
+        lower.contains('klaim') ||
+        lower.contains('verifikasi')) {
       return 'Untuk pertanyaan seputar verifikasi klaim BPJS, Anda dapat melihat '
           'riwayat verifikasi di tab Aktivitas, atau membaca artikel di beranda.\n\n'
           '(Balasan otomatis)';
     }
-    if (lower.contains('demam') || lower.contains('batuk') || lower.contains('pilek')) {
+    if (lower.contains('demam') ||
+        lower.contains('batuk') ||
+        lower.contains('pilek')) {
       return 'Terima kasih. Untuk gejala seperti ini, Anda bisa mencoba fitur '
           'Cek Gejala agar mendapat gambaran awal sebelum konsultasi.\n\n'
           '(Balasan otomatis)';
@@ -180,7 +172,10 @@ class _ChatPageState extends State<ChatPage> {
               radius: 17,
               backgroundColor: AppColors.brandSoft,
               child: Text(
-                _doctorName.replaceAll(RegExp(r'^Dr\.?\s*'), '').substring(0, 1).toUpperCase(),
+                _doctorName
+                    .replaceAll(RegExp(r'^Dr\.?\s*'), '')
+                    .substring(0, 1)
+                    .toUpperCase(),
                 style: const TextStyle(
                   color: AppColors.brandDark,
                   fontWeight: FontWeight.w700,
@@ -196,11 +191,13 @@ class _ChatPageState extends State<ChatPage> {
                 children: [
                   Text(
                     _doctorName,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                   Text(
                     '${widget.doctor['specialty']}',
-                    style: const TextStyle(fontSize: 11.5, color: AppColors.ink500),
+                    style: const TextStyle(
+                        fontSize: 11.5, color: AppColors.ink500),
                   ),
                 ],
               ),
@@ -230,12 +227,6 @@ class _ChatPageState extends State<ChatPage> {
 
   Widget _messageList() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      // where(userId) is REQUIRED, not redundant. The security rule allows a
-      // read only when resource.data.userId == request.auth.uid, and Firestore
-      // evaluates a list query against the QUERY, not the returned documents:
-      // if it cannot prove every possible result satisfies the rule it rejects
-      // the whole thing with permission-denied. Ordering by timestamp alone
-      // carries no such proof, which is exactly why the chat failed to load.
       stream: _messages
           .where('userId', isEqualTo: _uid)
           .orderBy('timestamp', descending: false)
@@ -270,10 +261,9 @@ class _ChatPageState extends State<ChatPage> {
             final isUser = data['sender'] == 'user';
             final timestamp = (data['timestamp'] as Timestamp?)?.toDate();
 
-            // Tanggal hanya ditampilkan saat harinya berganti, bukan di setiap
-            // pesan - jauh lebih mudah dipindai.
             final previous = index == 0 ? null : docs[index - 1].data();
-            final previousDate = (previous?['timestamp'] as Timestamp?)?.toDate();
+            final previousDate =
+                (previous?['timestamp'] as Timestamp?)?.toDate();
             final showDate = timestamp != null &&
                 (previousDate == null || previousDate.day != timestamp.day);
 
@@ -309,7 +299,8 @@ class _AutoReplyNotice extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline_rounded, size: AppIcons.sm, color: Color(0xFFB06000)),
+          const Icon(Icons.info_outline_rounded,
+              size: AppIcons.sm, color: Color(0xFFB06000)),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
@@ -329,7 +320,8 @@ class _AutoReplyNotice extends StatelessWidget {
 }
 
 class _EmptyConversation extends StatelessWidget {
-  const _EmptyConversation({required this.doctorName, required this.onSuggestion});
+  const _EmptyConversation(
+      {required this.doctorName, required this.onSuggestion});
 
   final String doctorName;
   final ValueChanged<String> onSuggestion;
@@ -354,7 +346,8 @@ class _EmptyConversation extends StatelessWidget {
               color: AppColors.brandSoft,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.forum_rounded, size: AppIcons.xl, color: AppColors.brandDark),
+            child: const Icon(Icons.forum_rounded,
+                size: AppIcons.xl, color: AppColors.brandDark),
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -395,9 +388,8 @@ class _Bubble extends StatelessWidget {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
-        // Maksimum 78% lebar layar: gelembung selebar penuh sulit dibaca dan
-        // menghilangkan petunjuk visual siapa yang berbicara.
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+        constraints:
+            BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
         child: Container(
           margin: const EdgeInsets.only(bottom: AppSpacing.sm),
           padding: const EdgeInsets.symmetric(
@@ -452,7 +444,8 @@ class _DateSeparator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+    final isToday =
+        date.year == now.year && date.month == now.month && date.day == now.day;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -467,7 +460,9 @@ class _DateSeparator extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadius.pill),
           ),
           child: Text(
-            isToday ? 'Hari ini' : DateFormat('dd MMMM yyyy', 'id_ID').format(date.toLocal()),
+            isToday
+                ? 'Hari ini'
+                : DateFormat('dd MMMM yyyy', 'id_ID').format(date.toLocal()),
             style: const TextStyle(fontSize: 11, color: AppColors.ink500),
           ),
         ),
@@ -494,7 +489,8 @@ class _TypingIndicator extends StatelessWidget {
           const SizedBox(
             width: 12,
             height: 12,
-            child: CircularProgressIndicator(strokeWidth: 1.6, color: AppColors.ink300),
+            child: CircularProgressIndicator(
+                strokeWidth: 1.6, color: AppColors.ink300),
           ),
           const SizedBox(width: AppSpacing.sm),
           Text(
@@ -540,14 +536,13 @@ class _Composer extends StatelessWidget {
             IconButton(
               onPressed: onQuickAction,
               tooltip: 'Cek Gejala',
-              icon: const Icon(Icons.medical_information_outlined, color: AppColors.brandDark),
+              icon: const Icon(Icons.medical_information_outlined,
+                  color: AppColors.brandDark),
             ),
             Expanded(
               child: TextField(
                 controller: controller,
                 focusNode: focusNode,
-                // Tumbuh sampai 5 baris lalu menggulir: pesan panjang tetap
-                // terbaca sepenuhnya sebelum dikirim.
                 minLines: 1,
                 maxLines: 5,
                 textCapitalization: TextCapitalization.sentences,
@@ -569,7 +564,8 @@ class _Composer extends StatelessWidget {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppRadius.pill),
-                    borderSide: const BorderSide(color: AppColors.brand, width: 1.6),
+                    borderSide:
+                        const BorderSide(color: AppColors.brand, width: 1.6),
                   ),
                 ),
               ),
@@ -587,9 +583,11 @@ class _Composer extends StatelessWidget {
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
-                      : const Icon(Icons.send_rounded, color: AppColors.white, size: 20),
+                      : const Icon(Icons.send_rounded,
+                          color: AppColors.white, size: 20),
                 ),
               ),
             ),

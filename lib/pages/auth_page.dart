@@ -31,7 +31,9 @@ class _AuthPageState extends State<AuthPage> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    setState(() { _isLoading = true; });
+    setState(() {
+      _isLoading = true;
+    });
 
     final authService = Provider.of<AuthService>(context, listen: false);
     String? error;
@@ -51,7 +53,9 @@ class _AuthPageState extends State<AuthPage> {
     }
 
     if (!mounted) return;
-    setState(() { _isLoading = false; });
+    setState(() {
+      _isLoading = false;
+    });
 
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -72,16 +76,20 @@ class _AuthPageState extends State<AuthPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(Icons.local_hospital_outlined, size: 80, color: Theme.of(context).colorScheme.primary),
+                Icon(Icons.local_hospital_outlined,
+                    size: 80, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(height: 24),
                 Text(
                   _isLogin ? 'Selamat Datang' : 'Buat Akun Baru',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 28, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _isLogin ? 'Login untuk melanjutkan' : 'Daftar untuk memulai perjalanan sehatmu',
+                  _isLogin
+                      ? 'Login untuk melanjutkan'
+                      : 'Daftar untuk memulai perjalanan sehatmu',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
                 ),
@@ -94,9 +102,10 @@ class _AuthPageState extends State<AuthPage> {
                       prefixIcon: Icon(Icons.person_outline),
                     ),
                     textCapitalization: TextCapitalization.words,
-                    validator: (value) => (value == null || value.trim().length < 3)
-                        ? 'Masukkan nama lengkap Anda'
-                        : null,
+                    validator: (value) =>
+                        (value == null || value.trim().length < 3)
+                            ? 'Masukkan nama lengkap Anda'
+                            : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -108,25 +117,33 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                     keyboardType: TextInputType.number,
                     maxLength: 13,
-                    validator: (value) =>
-                        (value == null || !RegExp(r'^[0-9]{13}$').hasMatch(value.trim()))
-                            ? 'Nomor BPJS harus 13 digit'
-                            : null,
+                    validator: (value) => (value == null ||
+                            !RegExp(r'^[0-9]{13}$').hasMatch(value.trim()))
+                        ? 'Nomor BPJS harus 13 digit'
+                        : null,
                   ),
                   const SizedBox(height: 16),
                 ],
                 TextFormField(
                   controller: _emailController,
-                  decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined)),
+                  decoration: const InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: Icon(Icons.email_outlined)),
                   keyboardType: TextInputType.emailAddress,
-                  validator: (value) => (value == null || !value.contains('@')) ? 'Masukkan email yang valid' : null,
+                  validator: (value) => (value == null || !value.contains('@'))
+                      ? 'Masukkan email yang valid'
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _passwordController,
-                  decoration: const InputDecoration(labelText: 'Password', prefixIcon: Icon(Icons.lock_outline)),
+                  decoration: const InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: Icon(Icons.lock_outline)),
                   obscureText: true,
-                  validator: (value) => (value == null || value.length < 6) ? 'Password minimal 6 karakter' : null,
+                  validator: (value) => (value == null || value.length < 6)
+                      ? 'Password minimal 6 karakter'
+                      : null,
                 ),
                 const SizedBox(height: 32),
                 _isLoading
@@ -143,7 +160,9 @@ class _AuthPageState extends State<AuthPage> {
                       _isLogin = !_isLogin;
                     });
                   },
-                  child: Text(_isLogin ? 'Belum punya akun? Register di sini' : 'Sudah punya akun? Login'),
+                  child: Text(_isLogin
+                      ? 'Belum punya akun? Register di sini'
+                      : 'Sudah punya akun? Login'),
                 )
               ],
             ),

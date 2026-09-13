@@ -1,21 +1,3 @@
-"""Liveness detection: active challenge-response.
-
-Why not a passive CNN. The standard open anti-spoof model (MiniFASNet, from the
-Silent-Face-Anti-Spoofing project) ships as a PyTorch .pth with no official ONNX
-export. Community conversions exist but are unvetted binaries, and putting an
-unverifiable third-party artefact on the critical path of a fraud-prevention
-demo is a worse risk than the one it mitigates.
-
-What we have instead is already enough for a defensible check: SCRFD gives 5
-keypoints per frame, and the client submits a 3-frame burst. The server issues a
-RANDOM, single-use challenge before capture, so a pre-recorded video cannot
-satisfy a direction chosen after the recording was made. That property - not the
-texture heuristics - is what actually defeats replay.
-
-Structured behind LivenessBackend so a passive model can be dropped in later
-without touching the router.
-"""
-
 from __future__ import annotations
 
 import secrets
@@ -35,43 +17,21 @@ CHALLENGE_TEXT = {
     "move_closer": "Dekatkan wajah ke kamera",
 }
 
-# Weights sum to 1.0. Challenge compliance dominates because it is the only
-# signal an attacker cannot satisfy ahead of time.
 W_CHALLENGE = 0.35
 W_MOTION = 0.20
 W_TEXTURE = 0.15
 W_MOIRE = 0.15
 W_COLOR = 0.15
 
-# Calibrated against measured captures, not guessed. With the offset-based yaw
-# proxy a deliberate head turn shifts this by well over 0.10, while a static
-# image shifts it by exactly 0.0.
 YAW_SHIFT_REQUIRED = 0.10
 AREA_GROWTH_REQUIRED = 0.25
 
-# Whether a turn must be in the COMMANDED direction, or any direction.
-#
-# yaw_proxy() is signed in image coordinates, and whether the front camera's
-# still is mirrored relative to the preview depends on the camera stack
-# (Camera2 vs CameraX vs vendor HAL). Until that sign is confirmed on real
-# devices, a turn the wrong way scores like no turn at all, and a genuine
-# user fails three times for following instructions. So: the magnitude of
-# the turn is what is scored; the signed shift is recorded in the signals so
-# the sign can be confirmed from production data, then this flipped to True.
-#
-# Cost while False: a replayed video containing a head turn satisfies both
-# turn challenges (2 of 3). It still cannot satisfy move_closer, still has to
-# pass motion, texture, moire and colour, and still cannot be a static photo.
 STRICT_TURN_DIRECTION = False
 
-# Keypoint displacement between frames ~340 ms apart. A hand-held phone measures
-# 2-8 px; a photo taped to a stand measures 0. An earlier curve peaked at ~20 px,
-# which scored real hand-held captures at 0.15 and would have failed genuine
-# users - the threshold has to match how still a real hand actually is.
-MOTION_DEAD_PX = 0.5     # below this: nothing moved at all -> printed photo
-MOTION_GOOD_LO = 2.0     # full credit from here...
-MOTION_GOOD_HI = 25.0    # ...to here
-MOTION_MAX_PX = 40.0     # above this: a cut or a swapped image, not a head
+MOTION_DEAD_PX = 0.5
+MOTION_GOOD_LO = 2.0
+MOTION_GOOD_HI = 25.0
+MOTION_MAX_PX = 40.0
 
 
 def new_challenge() -> str:
@@ -108,8 +68,6 @@ class ActiveChallengeV1:
         signals: dict[str, float] = {}
 
         if len(faces) < 2:
-            # One usable frame cannot show motion at all. Fail closed rather than
-            # awarding the motion and challenge points by default.
             return LivenessResult(
                 passed=False,
                 score=0.0,
@@ -126,8 +84,6 @@ class ActiveChallengeV1:
         signals["moire"] = self._moire_score(frames, faces)
         signals["color"] = self._color_score(frames, faces)
 
-        # Diagnostics ride along in `signals` but must not be "the weakest
-        # signal" in the failure reason, nor part of the weighted score.
         scored = {k: v for k, v in signals.items() if k not in ("yaw_shift", "area_growth")}
         score = (
             W_CHALLENGE * signals["challenge"]
@@ -143,11 +99,8 @@ class ActiveChallengeV1:
             reason = f"sinyal terlemah: {weakest} ({scored[weakest]:.2f})"
         return LivenessResult(passed, round(float(score), 4), self.name, signals, reason)
 
-    # ------------------------------------------------------------------ #
     def _challenge_score(self, faces: list[Face], challenge: str | None) -> float:
         if not challenge:
-            # No challenge was issued, so there is nothing to comply with. Award a
-            # neutral score rather than a free pass.
             return 0.5
 
         first, last = faces[0], faces[-1]
@@ -163,15 +116,8 @@ class ActiveChallengeV1:
         return float(np.clip(shift / YAW_SHIFT_REQUIRED, 0.0, 1.0))
 
     def _motion_score(self, faces: list[Face]) -> float:
-        """A printed photo held still gives ~0 displacement; a swiped video jumps.
-
-        Plateau rather than a peak: everything from a steady hand to a lively one
-        is equally alive, so the score is flat across that whole band and only
-        falls off at the two implausible extremes.
-        """
-        deltas = [
-            float(np.abs(faces[i].kps - faces[i - 1].kps).mean()) for i in range(1, len(faces))
-        ]
+        """A printed photo held still gives ~0 displacement; a swiped video jumps."""
+        deltas = [float(np.abs(faces[i].kps - faces[i - 1].kps).mean()) for i in range(1, len(faces))]
         motion = float(np.mean(deltas)) if deltas else 0.0
 
         if motion < MOTION_DEAD_PX or motion > MOTION_MAX_PX:
@@ -183,8 +129,9 @@ class ActiveChallengeV1:
         return float(1.0 - (motion - MOTION_GOOD_HI) / (MOTION_MAX_PX - MOTION_GOOD_HI))
 
     def _texture_score(self, frames: list[np.ndarray], faces: list[Face]) -> float:
-        """Screen replays are uniformly sharp; a real scene has depth of field, so
-        the face is sharper than the background."""
+        """Screen replays are uniformly sharp; a real scene has depth of field, so the face is sharper than
+        the background.
+        """
         scores = []
         for frame, face in zip(frames, faces, strict=False):
             face_sharp = images.region_sharpness(frame, face.bbox)
@@ -202,7 +149,6 @@ class ActiveChallengeV1:
             if crop.size == 0:
                 continue
             hf = images.high_frequency_energy(crop)
-            # Live skin sits in a moderate band; a screen pushes energy higher.
             scores.append(np.clip(1.0 - abs(hf - 0.55) / 0.45, 0.0, 1.0))
         return float(np.mean(scores)) if scores else 0.5
 

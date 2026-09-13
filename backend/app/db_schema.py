@@ -1,16 +1,3 @@
-"""Single source of truth for the MongoDB layout.
-
-Collections, $jsonSchema validators and indexes live here so that
-scripts/bootstrap.py, the tests and the docs can never drift apart.
-
-Conventions:
-  * All timestamps are BSON date in UTC. Flutter renders WIB.
-  * NIK and no_bpjs are STRINGS. A 16-digit NIK stored as a double loses
-    precision and would silently corrupt identities.
-  * Validators run at validationLevel "moderate": they reject bad inserts but do
-    not block updates to documents that predate a schema change.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -18,9 +5,6 @@ from typing import Any
 from pymongo import ASCENDING, DESCENDING, GEOSPHERE, TEXT
 from pymongo.operations import IndexModel
 
-# --------------------------------------------------------------------------- #
-# Enumerations, shared with the Pydantic schemas in app/schemas/
-# --------------------------------------------------------------------------- #
 STATUS_KEPESERTAAN = ["AKTIF", "NONAKTIF", "MENUNGGAK"]
 JENIS_PESERTA = ["PBI", "PPU", "PBPU", "BP"]
 JENIS_KELAMIN = ["L", "P"]
@@ -34,18 +18,11 @@ SESSION_STATUS = [
     "rejected",
     "expired",
     "cancelled",
-    # Break-glass. A rejected session can be escalated for staff override rather
-    # than dead-ending - the proposal explicitly covers faces unscannable due to
-    # bruising and fingers unreadable after burns, and turning those patients
-    # away would deny care to exactly the people the system claims to serve.
     "override_pending",
     "override_rejected",
 ]
 STEP_NAMES = ["face", "fingerprint", "review", "commit"]
 STEP_STATUS = ["pending", "passed", "failed"]
-# APPROVED_WITH_OVERRIDE is deliberately a SEPARATE decision, never folded into
-# APPROVED. An override must stay distinguishable forever in the audit log and in
-# BPJS reporting, otherwise the break-glass path silently becomes the normal one.
 DECISIONS = ["APPROVED", "APPROVED_WITH_OVERRIDE", "REVIEW", "REJECTED"]
 RISK_BANDS = ["LOW", "MEDIUM", "HIGH"]
 
@@ -58,9 +35,6 @@ SIGNAL_STATUS = ["open", "reviewing", "confirmed", "dismissed"]
 
 STAFF_ROLES = ["petugas", "supervisor", "investigator", "admin"]
 
-# Level of assurance of an enrolment, carried on the resulting template. A claim
-# ceiling is applied per level, so a weakly-proven identity cannot support a
-# high-value claim.
 ASSURANCE_LEVELS = ["SELF_ASSERTED", "DUKCAPIL_VERIFIED", "ASSISTED_DUAL_CONTROL"]
 
 ENROLLMENT_STATUS = [
@@ -72,8 +46,6 @@ ENROLLMENT_STATUS = [
     "rejected_review",
 ]
 
-# Fixed enum, not free text. Free-text-only reasons are unanalysable, and the
-# whole point of recording a reason is to spot patterns across staff and faskes.
 OVERRIDE_REASONS = [
     "CEDERA_WAJAH",
     "LUKA_BAKAR_JARI",
@@ -85,7 +57,6 @@ OVERRIDE_REASONS = [
 
 CONSENT_PURPOSES = ["biometric_enrollment", "biometric_verification", "fraud_analytics"]
 
-# The encrypted envelope, reused by several collections.
 _ENC_ENVELOPE = {
     "bsonType": "object",
     "required": ["alg", "dek_wrapped", "dek_nonce", "nonce", "ciphertext", "aad"],
@@ -105,15 +76,11 @@ _GEO_POINT = {
     "required": ["type", "coordinates"],
     "properties": {
         "type": {"enum": ["Point"]},
-        # GeoJSON order is [longitude, latitude] - the reverse of how humans say it.
         "coordinates": {"bsonType": "array", "minItems": 2, "maxItems": 2},
     },
 }
 
 
-# --------------------------------------------------------------------------- #
-# Validators
-# --------------------------------------------------------------------------- #
 VALIDATORS: dict[str, dict[str, Any]] = {
     "peserta": {
         "bsonType": "object",
@@ -157,20 +124,15 @@ VALIDATORS: dict[str, dict[str, Any]] = {
             "version": {"bsonType": "int"},
             "model": {"bsonType": "object"},
             "enc": _ENC_ENVELOPE,
-            # Rotated into the secret basis; cosine-equivalent, never decrypted.
             "search_vector": {"bsonType": "array"},
             "rotation_id": {"bsonType": "string"},
             "quality": {"bsonType": "object"},
             "enroll_meta": {"bsonType": "object"},
-            # fingerprint_key documents carry a PUBLIC key, so no encryption.
             "device_id": {"bsonType": "objectId"},
             "public_key_der": {"bsonType": "binData"},
             "curve": {"bsonType": "string"},
             "attestation": {"bsonType": "object"},
             "status": {"enum": TEMPLATE_STATUS},
-            # How well the identity behind this template was proven. A template
-            # with no assurance recorded predates the enrolment pipeline and is
-            # treated as SELF_ASSERTED (the weakest) by the claim ceiling.
             "assurance": {"enum": ASSURANCE_LEVELS},
             "enrollment_request_id": {"bsonType": ["objectId", "null"]},
             "created_at": {"bsonType": "date"},
@@ -184,12 +146,8 @@ VALIDATORS: dict[str, dict[str, Any]] = {
         "properties": {
             "device_uid": {"bsonType": "string", "minLength": 16},
             "firebase_uid": {"bsonType": ["string", "null"]},
-            # More than one peserta on one device is a shared-device fraud signal.
             "peserta_ids": {"bsonType": "array"},
             "platform": {"bsonType": "string"},
-            # Optional client-supplied fields: a phone that does not report its
-            # model writes null, so the validator must accept null or every such
-            # enrolment fails with an opaque code 121.
             "os_version": {"bsonType": ["string", "null"]},
             "model": {"bsonType": ["string", "null"]},
             "app_version": {"bsonType": ["string", "null"]},
@@ -257,9 +215,7 @@ VALIDATORS: dict[str, dict[str, Any]] = {
             "peserta_id": {"bsonType": ["objectId", "null"]},
             "seq": {"bsonType": "int", "minimum": 0},
             "step": {"enum": STEP_NAMES + ["session"]},
-            "outcome": {
-                "enum": ["passed", "failed", "started", "cancelled", "expired"]
-            },
+            "outcome": {"enum": ["passed", "failed", "started", "cancelled", "expired"]},
             "method": {"bsonType": "string"},
             "scores": {"bsonType": "object"},
             "error_code": {"bsonType": ["string", "null"]},
@@ -329,18 +285,13 @@ VALIDATORS: dict[str, dict[str, Any]] = {
             "peserta_id": {"bsonType": ["objectId", "null"]},
             "status": {"enum": ENROLLMENT_STATUS},
             "assurance": {"enum": ASSURANCE_LEVELS},
-            # Who captured and who approved. These MUST differ - four-eyes is
-            # enforced in enrollment_service, and stored so it is auditable.
             "captured_by": {"bsonType": ["objectId", "null"]},
             "approved_by": {"bsonType": ["objectId", "null"]},
             "faskes_id": {"bsonType": ["objectId", "null"]},
-            # Result of the mandatory 1:N sweep. An empty list is a PASS that was
-            # actually performed; a missing field means the gate never ran.
             "dedup": {"bsonType": "object"},
             "quality": {"bsonType": "object"},
             "rejection_reason": {"bsonType": ["string", "null"]},
             "template_id": {"bsonType": ["objectId", "null"]},
-            # KTP / BPJS card evidence, AES-GCM encrypted. Never plaintext.
             "evidence": {"bsonType": "object"},
             "dukcapil": {"bsonType": "object"},
             "created_at": {"bsonType": "date"},
@@ -356,9 +307,6 @@ VALIDATORS: dict[str, dict[str, Any]] = {
             "peserta_id": {"bsonType": "objectId"},
             "purpose": {"enum": CONSENT_PURPOSES},
             "version": {"bsonType": "string"},
-            # Hash of the exact consent text shown. Without this you can prove
-            # that they consented but not to WHAT, which UU PDP 27/2022 requires
-            # for data pribadi spesifik.
             "text_hash": {"bsonType": "string", "pattern": "^[0-9a-f]{64}$"},
             "granted_at": {"bsonType": "date"},
             "granted_via": {"bsonType": "string"},
@@ -402,9 +350,6 @@ VALIDATORS: dict[str, dict[str, Any]] = {
 }
 
 
-# --------------------------------------------------------------------------- #
-# Indexes
-# --------------------------------------------------------------------------- #
 INDEXES: dict[str, list[IndexModel]] = {
     "peserta": [
         IndexModel([("no_bpjs", ASCENDING)], name="uniq_no_bpjs", unique=True),
@@ -433,10 +378,7 @@ INDEXES: dict[str, list[IndexModel]] = {
             ],
             name="peserta_modality_status",
         ),
-        # Drives the 1:N collision sweep over search_vector.
-        IndexModel(
-            [("status", ASCENDING), ("modality", ASCENDING)], name="status_modality"
-        ),
+        IndexModel([("status", ASCENDING), ("modality", ASCENDING)], name="status_modality"),
         IndexModel([("created_at", DESCENDING)], name="created_desc"),
     ],
     "devices": [
@@ -447,13 +389,10 @@ INDEXES: dict[str, list[IndexModel]] = {
     ],
     "facilities": [
         IndexModel([("kode_faskes", ASCENDING)], name="uniq_kode_faskes", unique=True),
-        # Makes the impossible-travel check a one-line $geoNear.
         IndexModel([("geo", GEOSPHERE)], name="geo_2dsphere"),
     ],
     "verification_sessions": [
-        IndexModel(
-            [("session_token", ASCENDING)], name="uniq_session_token", unique=True
-        ),
+        IndexModel([("session_token", ASCENDING)], name="uniq_session_token", unique=True),
         IndexModel(
             [("peserta_id", ASCENDING), ("created_at", DESCENDING)],
             name="peserta_recent",
@@ -478,18 +417,11 @@ INDEXES: dict[str, list[IndexModel]] = {
             ],
             name="duplicate_claim_lookup",
         ),
-        # Drives STAFF_OVERRIDE_FREQUENCY: count overrides per staff member over
-        # a rolling window. Partial, because overrides are a small minority of
-        # sessions and indexing every session under this key would be wasteful.
         IndexModel(
             [("override.approved_by", ASCENDING), ("created_at", DESCENDING)],
             name="override_by_staff",
             partialFilterExpression={"override.approved_by": {"$exists": True}},
         ),
-        # PARTIAL TTL - this is load-bearing. Only sessions that were never started
-        # self-delete. A plain TTL here would quietly eat every completed session,
-        # and those are the permanent audit log. Asserted in
-        # tests/test_session_state_machine.py.
         IndexModel(
             [("expires_at", ASCENDING)],
             name="ttl_abandoned_only",
@@ -503,9 +435,7 @@ INDEXES: dict[str, list[IndexModel]] = {
             name="uniq_session_seq",
             unique=True,
         ),
-        IndexModel(
-            [("peserta_id", ASCENDING), ("at", DESCENDING)], name="peserta_recent"
-        ),
+        IndexModel([("peserta_id", ASCENDING), ("at", DESCENDING)], name="peserta_recent"),
         IndexModel(
             [("step", ASCENDING), ("outcome", ASCENDING), ("at", DESCENDING)],
             name="step_outcome_recent",
@@ -525,22 +455,20 @@ INDEXES: dict[str, list[IndexModel]] = {
             ],
             name="triage_queue",
         ),
-        IndexModel(
-            [("rule_id", ASCENDING), ("detected_at", DESCENDING)], name="rule_recent"
-        ),
+        IndexModel([("rule_id", ASCENDING), ("detected_at", DESCENDING)], name="rule_recent"),
         IndexModel([("session_id", ASCENDING)], name="session"),
     ],
     "nonces": [
-        # Full TTL is correct here: a nonce past its expiry has no audit value,
-        # the verification_events entry already records that it was used.
-        IndexModel(
-            [("expires_at", ASCENDING)], name="ttl_nonce", expireAfterSeconds=0
-        ),
+        IndexModel([("expires_at", ASCENDING)], name="ttl_nonce", expireAfterSeconds=0),
         IndexModel([("session_id", ASCENDING)], name="session"),
     ],
     "staff": [
-        IndexModel([("nip", ASCENDING)], name="uniq_nip", unique=True,
-                   partialFilterExpression={"nip": {"$type": "string"}}),
+        IndexModel(
+            [("nip", ASCENDING)],
+            name="uniq_nip",
+            unique=True,
+            partialFilterExpression={"nip": {"$type": "string"}},
+        ),
         IndexModel([("faskes_id", ASCENDING), ("role", ASCENDING)], name="faskes_role"),
         IndexModel([("active", ASCENDING)], name="active"),
     ],
@@ -548,15 +476,11 @@ INDEXES: dict[str, list[IndexModel]] = {
         IndexModel([("no_bpjs", ASCENDING), ("created_at", DESCENDING)], name="bpjs_recent"),
         IndexModel([("status", ASCENDING), ("created_at", DESCENDING)], name="status_recent"),
         IndexModel([("captured_by", ASCENDING), ("created_at", DESCENDING)], name="capturer_recent"),
-        # Only ONE enrolment may be in flight per participant. Without this,
-        # two concurrent requests could both clear the dedup gate and race.
         IndexModel(
             [("no_bpjs", ASCENDING)],
             name="uniq_inflight_per_peserta",
             unique=True,
-            partialFilterExpression={
-                "status": {"$in": ["draft", "pending_dedup", "pending_approval"]}
-            },
+            partialFilterExpression={"status": {"$in": ["draft", "pending_dedup", "pending_approval"]}},
         ),
     ],
     "consent": [
@@ -565,8 +489,6 @@ INDEXES: dict[str, list[IndexModel]] = {
     ],
     "articles": [
         IndexModel([("slug", ASCENDING)], name="uniq_slug", unique=True),
-        # Urutan daftar: unggulan dulu, lalu terbaru. Index majemuk ini yang
-        # membuat sort tidak memindai seluruh koleksi.
         IndexModel(
             [("published", ASCENDING), ("featured", DESCENDING), ("published_at", DESCENDING)],
             name="published_featured_recent",
@@ -574,9 +496,7 @@ INDEXES: dict[str, list[IndexModel]] = {
         IndexModel([("kategori", ASCENDING), ("published_at", DESCENDING)], name="kategori_recent"),
     ],
     "audit_log": [
-        IndexModel(
-            [("peserta_id", ASCENDING), ("at", DESCENDING)], name="peserta_recent"
-        ),
+        IndexModel([("peserta_id", ASCENDING), ("at", DESCENDING)], name="peserta_recent"),
         IndexModel([("at", DESCENDING)], name="recent"),
     ],
 }

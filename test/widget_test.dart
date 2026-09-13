@@ -1,10 +1,3 @@
-// Menggantikan template counter bawaan Flutter, yang mereferensikan aplikasi
-// pencacah yang tidak pernah ada di proyek ini dan karenanya TIDAK PERNAH bisa
-// lolos. Ini satu-satunya test di repo, sehingga suite-nya gagal sejak awal.
-//
-// Fokusnya pada logika yang menentukan apakah klaim BPJS disetujui - bagian yang
-// tidak boleh berubah diam-diam.
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:identicare_mobile/models/api_result.dart';
 import 'package:identicare_mobile/models/review_data.dart';
@@ -44,7 +37,8 @@ void main() {
         SessionStatus.expired,
         SessionStatus.cancelled,
       ]) {
-        expect(status.isTerminal, isTrue, reason: '$status seharusnya terminal');
+        expect(status.isTerminal, isTrue,
+            reason: '$status seharusnya terminal');
       }
       for (final status in [
         SessionStatus.created,
@@ -65,7 +59,6 @@ void main() {
 
   group('FaceStepResult', () {
     test('kegagalan datang sebagai HTTP 200 dan tetap membawa skor', () {
-      // Wajah yang tidak cocok adalah keputusan sistem yang benar, bukan error.
       final result = FaceStepResult.fromJson({
         'status': 'ok',
         'step': 'face',
@@ -87,12 +80,13 @@ void main() {
 
     test('batas percobaan habis dikenali', () {
       expect(
-        FaceStepResult.fromJson({'result': 'failed', 'error_code': 'MAX_ATTEMPTS'})
-            .isExhausted,
+        FaceStepResult.fromJson(
+            {'result': 'failed', 'error_code': 'MAX_ATTEMPTS'}).isExhausted,
         isTrue,
       );
       expect(
-        FaceStepResult.fromJson({'result': 'failed', 'attempts_left': 0}).isExhausted,
+        FaceStepResult.fromJson({'result': 'failed', 'attempts_left': 0})
+            .isExhausted,
         isTrue,
       );
     });
@@ -102,7 +96,11 @@ void main() {
         'result': 'passed',
         'match_score': 0.514,
         'nonce': 'a7f2abc',
-        'liveness': {'passed': true, 'score': 0.88, 'method': 'active_challenge_v1'},
+        'liveness': {
+          'passed': true,
+          'score': 0.88,
+          'method': 'active_challenge_v1'
+        },
       });
       expect(result.passed, isTrue);
       expect(result.nonce, 'a7f2abc');
@@ -165,7 +163,11 @@ void main() {
           'score': 40,
           'band': 'HIGH',
           'signals': [
-            {'rule_id': 'SIMULTANEOUS_CLAIM', 'severity': 'critical', 'weight': 40}
+            {
+              'rule_id': 'SIMULTANEOUS_CLAIM',
+              'severity': 'critical',
+              'weight': 40
+            }
           ],
         },
       });
@@ -204,8 +206,7 @@ void main() {
           );
 
       final base = build();
-      // Kalau salah satu tidak terikat, tanda tangan bisa diputar ulang ke
-      // sesi, perangkat, atau peserta lain.
+
       expect(build(sessionId: 'lain'), isNot(base));
       expect(build(nonce: 'lain'), isNot(base));
       expect(build(deviceUid: 'lain'), isNot(base));
@@ -223,7 +224,11 @@ void main() {
     });
 
     test('ApiFailure mengenali sesi yang sudah tidak berlaku', () {
-      for (final code in ['SESSION_EXPIRED', 'SESSION_NOT_FOUND', 'SESSION_CLOSED']) {
+      for (final code in [
+        'SESSION_EXPIRED',
+        'SESSION_NOT_FOUND',
+        'SESSION_CLOSED'
+      ]) {
         expect(
           ApiFailure<void>(errorCode: code, message: '').isSessionGone,
           isTrue,
@@ -231,14 +236,16 @@ void main() {
         );
       }
       expect(
-        const ApiFailure<void>(errorCode: 'FACE_MISMATCH', message: '').isSessionGone,
+        const ApiFailure<void>(errorCode: 'FACE_MISMATCH', message: '')
+            .isSessionGone,
         isFalse,
       );
     });
 
     test('kegagalan jaringan dibedakan dari error server', () {
       expect(
-        const ApiFailure<void>(errorCode: 'NETWORK_ERROR', message: '').isNetworkError,
+        const ApiFailure<void>(errorCode: 'NETWORK_ERROR', message: '')
+            .isNetworkError,
         isTrue,
       );
     });

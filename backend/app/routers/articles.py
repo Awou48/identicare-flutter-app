@@ -1,14 +1,3 @@
-"""Artikel kesehatan.
-
-Sebelumnya satu artikel di-hardcode di home_page.dart bersama URL gambar
-Unsplash, sehingga mengubah isinya berarti merilis ulang aplikasi. Sekarang
-isinya ada di MongoDB dan dikelola lewat API.
-
-Membaca artikel tidak memerlukan autentikasi - ini materi edukasi publik, dan
-mewajibkan token hanya akan menghalangi kampanye kesehatan yang justru ingin
-dijangkau seluas mungkin. Menulis tetap memerlukan kunci operator.
-"""
-
 from __future__ import annotations
 
 import re
@@ -61,8 +50,6 @@ async def list_articles(
     if featured_only:
         query["featured"] = True
     if q:
-        # Pencarian sederhana pada judul dan ringkasan. Cukup untuk katalog
-        # sebesar ini; kalau tumbuh, naikkan ke text index.
         query["$or"] = [
             {"judul": {"$regex": re.escape(q), "$options": "i"}},
             {"ringkasan": {"$regex": re.escape(q), "$options": "i"}},
@@ -96,7 +83,6 @@ async def get_article(slug: str, db: DbDep) -> dict:
     if not doc:
         raise ApiError("ARTICLE_NOT_FOUND", 404, message="Artikel tidak ditemukan.")
 
-    # Penghitung baca. Tidak fatal kalau gagal - artikelnya tetap dikirim.
     await db.articles.update_one({"_id": doc["_id"]}, {"$inc": {"views": 1}})
     return {"status": "ok", "article": _public(doc, full=True)}
 
@@ -122,7 +108,6 @@ async def upsert_article(payload: dict, db: DbDep, _: OperatorDep) -> dict:
         "sumber": payload.get("sumber"),
         "featured": bool(payload.get("featured", False)),
         "published": bool(payload.get("published", True)),
-        # ~200 kata per menit, minimum 1 - supaya tidak pernah tampil "0 menit".
         "reading_minutes": max(1, round(len(konten.split()) / 200)),
         "updated_at": now,
     }

@@ -7,16 +7,12 @@ import 'package:identicare_mobile/widgets/verification/status_badge.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-/// Riwayat verifikasi dari MongoDB (bukan Firestore).
-///
-/// Ini sisi lain dari keputusan database hibrida: tab "Konsultasi" tetap membaca
-/// `riwayat_konsultasi` di Firestore, sedangkan tab ini membaca log verifikasi
-/// dari API Python.
 class VerificationHistoryPage extends StatefulWidget {
   const VerificationHistoryPage({super.key});
 
   @override
-  State<VerificationHistoryPage> createState() => _VerificationHistoryPageState();
+  State<VerificationHistoryPage> createState() =>
+      _VerificationHistoryPageState();
 }
 
 class _VerificationHistoryPageState extends State<VerificationHistoryPage> {
@@ -80,8 +76,7 @@ class _VerificationHistoryPageState extends State<VerificationHistoryPage> {
       failure: (f) {
         setState(() {
           _loading = false;
-          // PESERTA_NOT_FOUND berarti akun ini belum ditautkan ke nomor BPJS -
-          // bukan error, keadaan yang bisa diselesaikan pengguna di sini juga.
+
           _notLinked = f.errorCode == 'PESERTA_NOT_FOUND';
           _error = _notLinked
               ? 'Akun ini belum tertaut dengan data peserta BPJS.'
@@ -220,7 +215,8 @@ class _HistoryCard extends StatelessWidget {
                     child: Text(
                       DateFormat('EEEE, dd MMM yyyy · HH:mm', 'id_ID')
                           .format(entry.tanggal.toLocal()),
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 13),
                     ),
                   ),
                   StatusBadge(status: entry.status, compact: true),
@@ -287,7 +283,9 @@ class _Empty extends StatelessWidget {
           children: [
             Icon(icon, size: 56, color: Colors.grey.shade400),
             const SizedBox(height: 16),
-            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(title,
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Text(
               message,
@@ -298,7 +296,9 @@ class _Empty extends StatelessWidget {
               const SizedBox(height: 20),
               FilledButton.icon(
                 onPressed: onRetry,
-                icon: Icon(actionLabel == 'Coba Lagi' ? Icons.refresh : Icons.link_rounded),
+                icon: Icon(actionLabel == 'Coba Lagi'
+                    ? Icons.refresh
+                    : Icons.link_rounded),
                 label: Text(actionLabel),
               ),
             ],

@@ -1,12 +1,3 @@
-"""Status peserta dan penautan akun untuk pengguna yang sedang login.
-
-Sengaja TIDAK menerima no_bpjs sebagai parameter pada /me. Peserta diambil dari
-firebase_uid milik token pemanggil, sehingga tidak ada cara bagi seseorang untuk
-menanyakan status orang lain hanya dengan menebak nomor BPJS. Endpoint yang
-menerima no_bpjs dan mengembalikan status pendaftaran biometriknya adalah
-oracle enumerasi gratis.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -23,8 +14,6 @@ from app.utils.errors import ApiError
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/peserta", tags=["peserta"])
 
-# Lima tebakan NIK+tanggal lahir per jam per akun. Cukup longgar untuk salah
-# ketik, cukup ketat supaya menebak identitas orang lain tidak praktis.
 LINK_MAX_FAILURES = 5
 LINK_WINDOW = timedelta(hours=1)
 
@@ -44,8 +33,6 @@ async def my_status(db: DbDep, user: CurrentUserDep) -> dict:
     return {
         "status": "ok",
         "nama_lengkap": peserta["nama_lengkap"],
-        # Nomor penuh dikembalikan karena pemanggil ADALAH pemiliknya - ia
-        # dibutuhkan untuk memulai sesi verifikasi. Yang bertopeng untuk tampilan.
         "no_bpjs": peserta["no_bpjs"],
         "no_bpjs_masked": crypto.mask_bpjs(peserta["no_bpjs"]),
         "status_kepesertaan": peserta.get("status_kepesertaan"),
@@ -53,11 +40,8 @@ async def my_status(db: DbDep, user: CurrentUserDep) -> dict:
         "jenis_peserta": peserta.get("jenis_peserta"),
         "tunggakan_bulan": peserta.get("tunggakan_bulan", 0),
         "faskes_tingkat1": (peserta.get("faskes_tingkat1") or {}).get("nama"),
-        # From the template, not the flag - see matcher.get_active_template.
         "biometric_enrolled": template is not None,
         "biometric_enrolled_at": (template or {}).get("created_at"),
-        # Tingkat jaminan ditampilkan supaya pengguna tahu pendaftarannya
-        # lemah (mandiri) atau kuat (terverifikasi Dukcapil / berbantuan).
         "assurance": (template or {}).get("assurance"),
         "linked_via": peserta.get("linked_via"),
     }
@@ -70,37 +54,10 @@ class LinkRequest(BaseModel):
 
 
 @router.post("/link")
-async def link_account(
-    payload: LinkRequest, db: DbDep, settings: SettingsDep, user: CurrentUserDep
-) -> dict:
-    """Tautkan akun login ini ke satu peserta BPJS.
-
-    Ini langkah yang sebelumnya tidak ada. Login dikelola Firebase, data BPJS
-    ada di MongoDB, dan keduanya dijahit oleh peserta.firebase_uid - tetapi
-    satu-satunya yang pernah mengisi field itu adalah endpoint operator. Setiap
-    pengguna sungguhan yang mendaftar berakhir di PESERTA_NOT_FOUND di semua
-    layar, tanpa satu pun jalan keluar dari dalam aplikasi.
-
-    Bukti kepemilikan: nomor BPJS + NIK + tanggal lahir, ketiganya tercetak di
-    kartu fisik KTP dan BPJS. Ini tripel yang sama yang diminta Mobile JKN saat
-    registrasi. Bukan bukti yang kuat - orang dalam yang memegang datanya bisa
-    lolos - tetapi cukup untuk menghentikan penautan sembarangan, dan tiga
-    pengaman lain yang membatasi kerusakannya:
-
-      1. Sekali tertaut, tidak bisa ditaut ulang dari sini. Mengambil alih akun
-         yang sudah tertaut wajib lewat operator dengan kontrol ganda.
-      2. Percobaan yang salah dibatasi 5 per jam per akun - NIK tidak bisa
-         ditebak dengan brute force.
-      3. Menautkan saja tidak memberi apa-apa. Klaim tetap butuh wajah yang
-         lolos gerbang deduplikasi 1:N, dan pendaftaran mandiri membawa batas
-         nilai klaim (SELF_ASSERTED).
-
-    Pesan kegagalan sengaja tidak menyebut field mana yang salah: menyebutnya
-    menjadikan endpoint ini oracle untuk mencocokkan NIK dengan nomor BPJS.
-    """
+async def link_account(payload: LinkRequest, db: DbDep, settings: SettingsDep, user: CurrentUserDep) -> dict:
+    """Tautkan akun login ini ke satu peserta BPJS."""
     now = datetime.now(UTC)
 
-    # --- pembatas percobaan --------------------------------------------- #
     recent_failures = await db.audit_log.count_documents(
         {
             "who": user.uid,
@@ -117,7 +74,6 @@ async def link_account(
 
     peserta = await db.peserta.find_one({"no_bpjs": payload.no_bpjs})
 
-    # Verifikasi kepemilikan. Semua cabang gagal memakai pesan yang SAMA.
     identity_ok = False
     if peserta:
         nik_ok = crypto.constant_time_equals(
@@ -138,17 +94,12 @@ async def link_account(
         raise ApiError(
             "IDENTITY_MISMATCH",
             403,
-            message="Data tidak cocok dengan catatan BPJS. Periksa nomor BPJS, NIK, "
-            "dan tanggal lahir Anda.",
+            message="Data tidak cocok dengan catatan BPJS. Periksa nomor BPJS, NIK, dan tanggal lahir Anda.",
             details={"attempts_left": LINK_MAX_FAILURES - recent_failures - 1},
         )
 
-    # --- sudah tertaut? -------------------------------------------------- #
     existing = peserta.get("firebase_uid")
     if existing and existing != user.uid:
-        # Seseorang yang tahu tripel identitas mencoba menautkan peserta yang
-        # sudah punya akun. Itu persis pola pengambilalihan akun, jadi ia
-        # dicatat sebagai sinyal fraud, bukan sekadar ditolak.
         await db.fraud_signals.insert_one(
             {
                 "peserta_id": peserta["_id"],
@@ -174,15 +125,12 @@ async def link_account(
         raise ApiError(
             "BPJS_ALREADY_LINKED",
             409,
-            message="Nomor BPJS ini sudah tertaut ke akun lain. Hubungi petugas "
-            "faskes untuk memindahkannya.",
+            message="Nomor BPJS ini sudah tertaut ke akun lain. Hubungi petugas faskes untuk memindahkannya.",
         )
 
     if existing == user.uid:
         return {"status": "ok", "linked": True, "already": True, "no_bpjs": peserta["no_bpjs"]}
 
-    # Sama seperti kondisi di atas, sebuah akun Firebase hanya boleh memegang
-    # satu peserta.
     other = await db.peserta.find_one({"firebase_uid": user.uid}, {"no_bpjs": 1})
     if other:
         raise ApiError(

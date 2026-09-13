@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:identicare_mobile/theme/app_theme.dart';
 
-/// Lencana status kecil, mis. "Terverifikasi dalam BPJS".
-///
-/// Auto-layout: lebarnya mengikuti isi (`MainAxisSize.min`) dan teksnya boleh
-/// menyusut, sehingga padding tetap rata berapa pun panjang labelnya.
 class AppStatusBadge extends StatelessWidget {
   const AppStatusBadge({
     super.key,
@@ -55,12 +51,6 @@ class AppStatusBadge extends StatelessWidget {
   }
 }
 
-/// Satu sel pada grid layanan.
-///
-/// Semua sel memakai radius, bobot ikon, dan padding yang sama; pembeda
-/// visualnya hanya ikon dan label. Sebelumnya tiap kartu punya warnanya sendiri
-/// (teal, biru, oranye, ungu), yang membuat grid terbaca sebagai empat hal tak
-/// berhubungan alih-alih satu set.
 class AppGridTile extends StatelessWidget {
   const AppGridTile({
     super.key,
@@ -83,23 +73,12 @@ class AppGridTile extends StatelessWidget {
   static const double _labelLineHeight = 1.3;
   static const int _labelLines = 2;
 
-  /// Tinggi kotak label, mengikuti skala teks sistem.
   static double _labelHeight(BuildContext context) =>
       MediaQuery.textScalerOf(context).scale(_labelFontSize) *
       _labelLineHeight *
       _labelLines;
 
-  /// Tinggi sel yang dibutuhkan isi kartu ini.
-  ///
-  /// Dipakai sebagai `mainAxisExtent` grid, BUKAN `childAspectRatio`. Aspect
-  /// ratio menurunkan tinggi dari lebar, sehingga tingginya berubah mengikuti
-  /// lebar layar sementara isinya tidak - di layar sempit hasilnya kurang 12 px
-  /// dan sel meluap. Tingginya memang tetap, jadi seharusnya dinyatakan
-  /// langsung. Ini juga ikut membesar ketika pengguna memperbesar ukuran font
-  /// perangkat, yang penting untuk peserta BPJS lanjut usia.
   static double extentFor(BuildContext context) =>
-      // Border.all() sisi atas + bawah. Tanpa ini sel meluap tepat 2 px: batas
-      // 1 px itu digambar DI DALAM ukuran kotak, jadi ia ikut memakan tinggi.
       _borderWidth * 2 +
       AppSpacing.lg * 2 +
       _iconBox +
@@ -151,10 +130,6 @@ class AppGridTile extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
-                // Dua baris tetap: dengan tinggi teks yang sama, semua sel
-                // sejajar apa pun panjang labelnya. Tingginya dihitung dari
-                // konstanta yang sama dengan extentFor(), jadi keduanya tidak
-                // bisa berbeda.
                 SizedBox(
                   height: _labelHeight(context),
                   child: Text(
@@ -178,8 +153,6 @@ class AppGridTile extends StatelessWidget {
   }
 }
 
-/// Baris daftar selebar layar, untuk tindakan sekunder yang tidak pantas
-/// memakan satu sel grid penuh.
 class AppListTileCard extends StatelessWidget {
   const AppListTileCard({
     super.key,
@@ -227,8 +200,6 @@ class AppListTileCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.lg),
-                // Expanded, bukan lebar tetap: judul panjang akan membungkus
-                // alih-alih meluap ke kanan.
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -246,7 +217,8 @@ class AppListTileCard extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           subtitle!,
-                          style: const TextStyle(fontSize: 12.5, color: AppColors.ink500),
+                          style: const TextStyle(
+                              fontSize: 12.5, color: AppColors.ink500),
                         ),
                       ],
                     ],
@@ -267,9 +239,9 @@ class AppListTileCard extends StatelessWidget {
   }
 }
 
-/// Judul bagian.
 class AppSectionHeader extends StatelessWidget {
-  const AppSectionHeader({super.key, required this.title, this.action, this.onAction});
+  const AppSectionHeader(
+      {super.key, required this.title, this.action, this.onAction});
 
   final String title;
   final String? action;
@@ -299,7 +271,9 @@ class AppSectionHeader extends StatelessWidget {
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: Text(action!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              child: Text(action!,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600)),
             ),
         ],
       ),
@@ -307,7 +281,6 @@ class AppSectionHeader extends StatelessWidget {
   }
 }
 
-/// Keadaan kosong / error yang seragam.
 class AppEmptyState extends StatelessWidget {
   const AppEmptyState({
     super.key,
@@ -323,8 +296,6 @@ class AppEmptyState extends StatelessWidget {
   final String title;
   final String message;
 
-  /// Detail teknis, ditampilkan kecil. Tanpa ini pengguna hanya melihat
-  /// "Terjadi kesalahan" dan tidak punya apa pun untuk ditindaklanjuti.
   final String? detail;
   final VoidCallback? onRetry;
   final String retryLabel;
@@ -356,7 +327,8 @@ class AppEmptyState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13.5, color: AppColors.ink500, height: 1.45),
+              style: const TextStyle(
+                  fontSize: 13.5, color: AppColors.ink500, height: 1.45),
             ),
             if (detail != null) ...[
               const SizedBox(height: AppSpacing.md),

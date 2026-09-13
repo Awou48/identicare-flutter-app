@@ -1,5 +1,3 @@
-"""BPJS participant payloads."""
-
 from __future__ import annotations
 
 from datetime import date
@@ -20,8 +18,6 @@ class Alamat(BaseModel):
 
 
 class PesertaCreate(BaseModel):
-    # 16 digits, and a STRING: as a number a NIK exceeds double precision and
-    # would silently corrupt the identity it is supposed to prove.
     nik: str = Field(pattern=r"^[0-9]{16}$")
     no_bpjs: str = Field(pattern=r"^[0-9]{13}$")
     nama_lengkap: str = Field(min_length=1, max_length=200)
@@ -38,12 +34,7 @@ class PesertaCreate(BaseModel):
 
 
 class PesertaPreview(BaseModel):
-    """Masked view returned at session start.
-
-    Full data is revealed only at step 3, after BOTH biometric factors pass.
-    Returning it earlier would let anyone who guesses a BPJS number read the
-    participant's record.
-    """
+    """Masked view returned at session start."""
 
     nama_masked: str
     no_bpjs_masked: str

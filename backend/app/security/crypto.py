@@ -1,20 +1,3 @@
-"""Envelope encryption for biometric templates and NIK.
-
-Design (see docs/SCHEMA.md 'Encrypting embeddings while still matching'):
-
-  * Every secret blob gets its OWN random 256-bit DEK.
-  * The DEK is sealed under a process-held KEK (backend/keys/kek.bin) and stored
-    beside the ciphertext. The KEK never enters MongoDB, so a database dump alone
-    is useless.
-  * Both the payload and the wrapped DEK are AES-256-GCM with the SAME AAD string,
-    which binds the ciphertext to the document that owns it. Moving Alice's sealed
-    template onto Bob's record makes decryption fail authentication rather than
-    silently succeed.
-
-Nothing here is homomorphic. Matching happens on plaintext held in RAM for the
-duration of one 1:1 comparison; the 1:N sweep uses rotation.py instead.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -32,9 +15,6 @@ DEK_BYTES = 32
 NONCE_BYTES = 12
 
 
-# --------------------------------------------------------------------------- #
-# Key loading
-# --------------------------------------------------------------------------- #
 def generate_kek() -> bytes:
     return secrets.token_bytes(KEK_BYTES)
 
@@ -42,9 +22,7 @@ def generate_kek() -> bytes:
 def load_kek(path: str | Path) -> bytes:
     path = Path(path)
     if not path.exists():
-        raise FileNotFoundError(
-            f"KEK not found at {path}. Run: python scripts/gen_keys.py"
-        )
+        raise FileNotFoundError(f"KEK not found at {path}. Run: python scripts/gen_keys.py")
     kek = path.read_bytes()
     if len(kek) != KEK_BYTES:
         raise ValueError(
@@ -55,9 +33,6 @@ def load_kek(path: str | Path) -> bytes:
     return kek
 
 
-# --------------------------------------------------------------------------- #
-# Envelope encryption
-# --------------------------------------------------------------------------- #
 def build_aad(peserta_id: Any, template_id: Any, version: int) -> str:
     """Canonical AAD. Binds a ciphertext to the document that owns it."""
     return f"{peserta_id}|{template_id}|v{version}"
@@ -95,9 +70,6 @@ def decrypt_blob(kek: bytes, env: dict[str, Any], aad: str) -> bytes:
         del dek
 
 
-# --------------------------------------------------------------------------- #
-# Embedding (de)serialisation — float32 little-endian, 512 * 4 = 2048 bytes
-# --------------------------------------------------------------------------- #
 def pack_embedding(vec: np.ndarray) -> bytes:
     return np.ascontiguousarray(vec, dtype="<f4").tobytes()
 
@@ -119,28 +91,15 @@ def decrypt_embedding(kek: bytes, env: dict[str, Any], aad: str, dim: int = 512)
 
 
 def wipe(arr: np.ndarray) -> None:
-    """Best-effort overwrite of a decrypted embedding buffer.
-
-    CPython gives no guarantee the original bytes are gone (the GC may have moved
-    them), but zeroing the array we control keeps the plaintext out of long-lived
-    heap pages, which is the realistic threat here.
-    """
+    """Best-effort overwrite of a decrypted embedding buffer."""
     try:
         arr[:] = 0
     except (ValueError, TypeError):
         pass
 
 
-# --------------------------------------------------------------------------- #
-# NIK handling
-# --------------------------------------------------------------------------- #
 def hash_nik(nik: str, pepper: str) -> str:
-    """Peppered SHA-256 for exact lookup.
-
-    A bare SHA-256 of a NIK is worthless: the space is 16 digits with heavy
-    structure (province/date encoded), so a dump would fall to offline brute force
-    in seconds. The pepper lives in the environment, never in the database.
-    """
+    """Peppered SHA-256 for exact lookup."""
     return hashlib.sha256(f"{pepper}{nik}".encode()).hexdigest()
 
 

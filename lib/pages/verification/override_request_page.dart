@@ -3,12 +3,6 @@ import 'package:identicare_mobile/models/override_request.dart';
 import 'package:identicare_mobile/services/verification_api_service.dart';
 import 'package:provider/provider.dart';
 
-/// Override petugas setelah biometrik gagal berulang.
-///
-/// Alur sengaja berat: dua petugas berbeda harus hadir dan login, alasan dipilih
-/// dari daftar tertutup, dan bukti fisik dicatat. Kalau override lebih mudah
-/// daripada verifikasi normal, ia berhenti menjadi pengaman dan berubah menjadi
-/// jalur fraud - rute termudah selalu yang paling sering dipakai.
 class OverrideRequestPage extends StatefulWidget {
   const OverrideRequestPage({
     super.key,
@@ -53,11 +47,9 @@ class _OverrideRequestPageState extends State<OverrideRequestPage> {
     );
     if (session == null || !mounted) return;
 
-    // Empat mata. Server memeriksa ini terhadap data tersimpan, bukan terhadap
-    // klaim klien - pemeriksaan di sini hanya agar petugas tahu lebih awal.
     if (asSupervisor && _petugas?.staffId == session.staffId) {
-      setState(() => _error =
-          'Supervisor harus orang yang berbeda dari petugas pengaju.');
+      setState(() =>
+          _error = 'Supervisor harus orang yang berbeda dari petugas pengaju.');
       return;
     }
 
@@ -77,8 +69,8 @@ class _OverrideRequestPageState extends State<OverrideRequestPage> {
     if (petugas == null || reason == null) return;
 
     if (reason.requiresNote && _noteController.text.trim().length < 10) {
-      setState(() => _error =
-          "Alasan 'Lainnya' wajib dijelaskan minimal 10 karakter.");
+      setState(() =>
+          _error = "Alasan 'Lainnya' wajib dijelaskan minimal 10 karakter.");
       return;
     }
 
@@ -131,8 +123,7 @@ class _OverrideRequestPageState extends State<OverrideRequestPage> {
           _busy = false;
           _result = body['decision'] as String?;
         });
-        // Hasil dikembalikan ke alur utama supaya layar hasil bisa menampilkan
-        // nomor bukti dan sinyal risiko yang menyertai override.
+
         Navigator.of(context).pop(body);
       },
       failure: (f) => setState(() {
@@ -159,7 +150,8 @@ class _OverrideRequestPageState extends State<OverrideRequestPage> {
               done: _petugas != null,
               child: _petugas == null
                   ? OutlinedButton.icon(
-                      onPressed: _busy ? null : () => _login(asSupervisor: false),
+                      onPressed:
+                          _busy ? null : () => _login(asSupervisor: false),
                       icon: const Icon(Icons.badge_outlined),
                       label: const Text('Login Petugas'),
                     )
@@ -174,12 +166,8 @@ class _OverrideRequestPageState extends State<OverrideRequestPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // RadioGroup, bukan groupValue per tile: yang terakhir sudah
-                  // deprecated sejak Flutter 3.32.
                   RadioGroup<OverrideReason>(
                     groupValue: _reason,
-                    // onChanged is non-nullable here, so the locked state is
-                    // enforced inside rather than by passing null.
                     onChanged: (value) {
                       if (_requested || _busy) return;
                       setState(() => _reason = value);
@@ -299,7 +287,8 @@ class _OverrideRequestPageState extends State<OverrideRequestPage> {
       decoration: BoxDecoration(
         color: const Color(0xFFF9AB00).withValues(alpha: 0.09),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFF9AB00).withValues(alpha: 0.4)),
+        border:
+            Border.all(color: const Color(0xFFF9AB00).withValues(alpha: 0.4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -389,7 +378,8 @@ class _OverrideRequestPageState extends State<OverrideRequestPage> {
 }
 
 class _StaffLoginDialog extends StatefulWidget {
-  const _StaffLoginDialog({required this.title, required this.requireSupervisor});
+  const _StaffLoginDialog(
+      {required this.title, required this.requireSupervisor});
 
   final String title;
   final bool requireSupervisor;

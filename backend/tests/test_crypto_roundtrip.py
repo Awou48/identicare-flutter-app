@@ -1,5 +1,3 @@
-"""Envelope encryption must round trip, and must refuse to decrypt out of context."""
-
 from __future__ import annotations
 
 import numpy as np
@@ -25,7 +23,6 @@ def test_ciphertext_is_not_plaintext(kek: bytes) -> None:
     env = crypto.encrypt_blob(kek, nik, crypto.build_aad("p", "t", 1))
     assert nik not in env["ciphertext"]
     assert len(env["nonce"]) == crypto.NONCE_BYTES
-    # GCM appends a 16-byte tag.
     assert len(env["ciphertext"]) == len(nik) + 16
 
 
@@ -46,8 +43,9 @@ def test_wrong_kek_fails(kek: bytes) -> None:
 
 
 def test_aad_binds_ciphertext_to_its_document(kek: bytes) -> None:
-    """The point of the AAD: an attacker with Mongo write access cannot move
-    Alice's sealed template onto Bob's record and have it decrypt."""
+    """The point of the AAD: an attacker with Mongo write access cannot move Alice's sealed template onto
+    Bob's record and have it decrypt.
+    """
     alice_aad = crypto.build_aad("alice", "tmpl_a", 1)
     bob_aad = crypto.build_aad("bob", "tmpl_b", 1)
 
@@ -74,9 +72,6 @@ def test_tampered_ciphertext_is_rejected(kek: bytes) -> None:
         crypto.decrypt_blob(kek, env, aad)
 
 
-# --------------------------------------------------------------------------- #
-# Embeddings
-# --------------------------------------------------------------------------- #
 def test_embedding_roundtrip_is_exact(kek: bytes) -> None:
     rng = np.random.default_rng(7)
     vec = rng.standard_normal(512).astype(np.float32)
@@ -85,7 +80,6 @@ def test_embedding_roundtrip_is_exact(kek: bytes) -> None:
     env = crypto.encrypt_embedding(kek, vec, aad)
     out = crypto.decrypt_embedding(kek, env, aad, dim=512)
 
-    # float32 through bytes and back is lossless, so require exact equality.
     np.testing.assert_array_equal(vec, out)
 
 
@@ -106,9 +100,6 @@ def test_wipe_zeroes_the_buffer() -> None:
     assert not vec.any()
 
 
-# --------------------------------------------------------------------------- #
-# NIK handling
-# --------------------------------------------------------------------------- #
 def test_hash_nik_is_deterministic_and_peppered() -> None:
     nik = "3174050412010001"
     assert crypto.hash_nik(nik, "pepper") == crypto.hash_nik(nik, "pepper")

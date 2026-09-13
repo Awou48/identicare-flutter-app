@@ -1,10 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Bingkai oval di atas preview kamera.
-///
-/// Warnanya mengikuti status: netral saat menunggu, primer saat mengambil,
-/// hijau saat berhasil, merah saat gagal - supaya pengguna tahu apa yang terjadi
-/// tanpa membaca teks.
 class FaceCameraOverlay extends StatelessWidget {
   const FaceCameraOverlay({
     super.key,
@@ -69,12 +64,12 @@ class _OvalCutoutPainter extends CustomPainter {
       height: size.height * 0.56,
     );
 
-    // Gelapkan seluruh area kecuali oval, dengan even-odd fill.
     final scrim = Path()
       ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
       ..addOval(oval)
       ..fillType = PathFillType.evenOdd;
-    canvas.drawPath(scrim, Paint()..color = Colors.black.withValues(alpha: 0.55));
+    canvas.drawPath(
+        scrim, Paint()..color = Colors.black.withValues(alpha: 0.55));
 
     canvas.drawOval(
       oval,

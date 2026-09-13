@@ -31,7 +31,8 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
       _loading = true;
       _error = null;
     });
-    final result = await context.read<VerificationApiService>().fetchArticle(widget.slug);
+    final result =
+        await context.read<VerificationApiService>().fetchArticle(widget.slug);
     if (!mounted) return;
     result.when(
       ok: (article) => setState(() {
@@ -80,7 +81,8 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
                     background: Image.network(
                       article.imageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: AppColors.ink100),
+                      errorBuilder: (_, __, ___) =>
+                          Container(color: AppColors.ink100),
                     ),
                   ),
           ),
@@ -113,20 +115,25 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
                       if (article.penulis != null) ...[
                         Text(
                           article.penulis!,
-                          style: const TextStyle(fontSize: 12.5, color: AppColors.ink500),
+                          style: const TextStyle(
+                              fontSize: 12.5, color: AppColors.ink500),
                         ),
-                        const Text(' · ', style: TextStyle(color: AppColors.ink300)),
+                        const Text(' · ',
+                            style: TextStyle(color: AppColors.ink300)),
                       ],
                       Text(
                         '${article.readingMinutes} menit baca',
-                        style: const TextStyle(fontSize: 12.5, color: AppColors.ink500),
+                        style: const TextStyle(
+                            fontSize: 12.5, color: AppColors.ink500),
                       ),
                       if (article.publishedAt != null) ...[
-                        const Text(' · ', style: TextStyle(color: AppColors.ink300)),
+                        const Text(' · ',
+                            style: TextStyle(color: AppColors.ink300)),
                         Text(
                           DateFormat('dd MMM yyyy', 'id_ID')
                               .format(article.publishedAt!.toLocal()),
-                          style: const TextStyle(fontSize: 12.5, color: AppColors.ink500),
+                          style: const TextStyle(
+                              fontSize: 12.5, color: AppColors.ink500),
                         ),
                       ],
                     ],
@@ -137,7 +144,8 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
                     const SizedBox(height: AppSpacing.xxl),
                     Text(
                       'Sumber: ${article.sumber}',
-                      style: const TextStyle(fontSize: 11.5, color: AppColors.ink500),
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppColors.ink500),
                     ),
                   ],
                   const SizedBox(height: AppSpacing.xxxl),
@@ -151,11 +159,6 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
   }
 }
 
-/// Penyaji markdown minimal.
-///
-/// Hanya menangani paragraf dan **judul tebal** - dua hal yang benar-benar
-/// dipakai artikel ini. Menambahkan paket markdown penuh untuk itu berarti satu
-/// dependensi lagi demi sintaks yang tidak dipakai.
 class _ArticleBody extends StatelessWidget {
   const _ArticleBody({required this.konten});
 
@@ -177,7 +180,8 @@ class _ArticleBody extends StatelessWidget {
     final isHeading = text.startsWith('**') && text.endsWith('**');
     if (isHeading) {
       return Padding(
-        padding: const EdgeInsets.only(top: AppSpacing.xl, bottom: AppSpacing.sm),
+        padding:
+            const EdgeInsets.only(top: AppSpacing.xl, bottom: AppSpacing.sm),
         child: Text(
           text.substring(2, text.length - 2),
           style: const TextStyle(
@@ -236,7 +240,8 @@ class _ArticleBody extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.lg),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 14.5, height: 1.7, color: AppColors.ink700),
+        style: const TextStyle(
+            fontSize: 14.5, height: 1.7, color: AppColors.ink700),
       ),
     );
   }

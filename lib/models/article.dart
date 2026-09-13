@@ -1,7 +1,3 @@
-/// Artikel kesehatan, dari MongoDB lewat API.
-///
-/// Menggantikan satu artikel yang di-hardcode di home_page.dart beserta URL
-/// gambar Unsplash-nya - mengubah isinya dulu berarti merilis ulang aplikasi.
 library;
 
 class Article {
@@ -15,7 +11,6 @@ class Article {
   final int readingMinutes;
   final bool featured;
 
-  /// Hanya terisi pada endpoint detail; daftar tidak mengirim isi penuh.
   final String? konten;
   final String? sumber;
 
@@ -55,7 +50,8 @@ class ArticlePage {
   final int total;
   final bool hasMore;
 
-  const ArticlePage({required this.items, this.total = 0, this.hasMore = false});
+  const ArticlePage(
+      {required this.items, this.total = 0, this.hasMore = false});
 
   factory ArticlePage.fromJson(Map<String, dynamic> json) => ArticlePage(
         items: ((json['items'] as List?) ?? const [])
@@ -66,13 +62,9 @@ class ArticlePage {
       );
 }
 
-/// Status peserta milik pengguna yang sedang login.
 class PesertaStatus {
   final String namaLengkap;
 
-  /// Nomor penuh. Server hanya mengembalikannya kepada pemiliknya sendiri
-  /// (dicari lewat firebase_uid), dan alur klaim membutuhkannya untuk memulai
-  /// sesi. Jangan pernah ditampilkan mentah di UI - pakai [noBpjsMasked].
   final String noBpjs;
   final String noBpjsMasked;
   final String? statusKepesertaan;
@@ -83,8 +75,6 @@ class PesertaStatus {
   final bool biometricEnrolled;
   final DateTime? biometricEnrolledAt;
 
-  /// SELF_ASSERTED / DUKCAPIL_VERIFIED / ASSISTED_DUAL_CONTROL, atau null untuk
-  /// template yang mendahului pipeline identity-proofing.
   final String? assurance;
 
   const PesertaStatus({

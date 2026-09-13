@@ -1,20 +1,3 @@
-"""Drive the whole 4-step flow over HTTP, then attack it.
-
-    python scripts/e2e_demo.py                 # against http://127.0.0.1:8000
-    python scripts/e2e_demo.py --url http://192.168.0.101:8000
-
-Exercises the happy path AND the failure paths that matter: out-of-order steps,
-replayed nonces, forged signatures, challenge re-rolls, and a still photo held up
-to the camera. A green happy path proves very little on its own - what matters is
-that the attacks are refused.
-
-NOTE on liveness: the synthetic faces in _synth_faces.py score ~0.68, because
-their colour and texture statistics are not skin, and they cannot simulate a head
-turn at all. Run the server with LIVENESS_MIN_SCORE=0.55 for this script. The
-production default of 0.70 is calibrated for REAL faces and must not be lowered
-for a demo.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -29,8 +12,6 @@ from datetime import UTC, datetime, timedelta
 
 import _synth_faces as synth
 import httpx
-
-import _bootstrap_path  # noqa: F401  (side effect: sys.path)
 
 PASS, FAIL = "[+]", "[!]"
 results: list[tuple[bool, str]] = []
@@ -48,27 +29,19 @@ class Client:
         self.http = httpx.Client(timeout=120.0)
         self.auth = {"Authorization": f"Bearer dev:{uid}"}
         self.operator = {"X-Api-Key": "dev-operator-key"}
-        # Identifies the faskes starting a session. Distinct role from the
-        # operator key even though both travel in X-Api-Key.
         self.faskes = {"X-Api-Key": "abc123"}
 
     def close(self) -> None:
         self.http.close()
 
 
-def sign_hmac(
-    secret: bytes, session_id: str, nonce: str, device_uid: str, no_bpjs: str, ts: int
-) -> str:
+def sign_hmac(secret: bytes, session_id: str, nonce: str, device_uid: str, no_bpjs: str, ts: int) -> str:
     payload = f"identicare-v1|{session_id}|{nonce}|{device_uid}|{no_bpjs}|{ts}"
     return base64.b64encode(hmac.new(secret, payload.encode(), hashlib.sha256).digest()).decode()
 
 
 def mint_nonce(session_id: str) -> str:
-    """Insert a fresh nonce directly, standing in for the app requesting one.
-
-    The API mints a nonce when the face step passes; this script burns that one
-    on the forged-signature and replay checks.
-    """
+    """Insert a fresh nonce directly, standing in for the app requesting one."""
     from bson import ObjectId
     from pymongo import MongoClient
 
@@ -78,14 +51,16 @@ def mint_nonce(session_id: str) -> str:
     db = MongoClient(s.mongo_uri)[s.mongo_db]
     nonce = secrets.token_hex(32)
     now = datetime.now(UTC)
-    db.nonces.insert_one({
-        "_id": nonce,
-        "session_id": ObjectId(session_id),
-        "purpose": "fingerprint",
-        "used": False,
-        "issued_at": now,
-        "expires_at": now + timedelta(seconds=s.nonce_ttl_seconds),
-    })
+    db.nonces.insert_one(
+        {
+            "_id": nonce,
+            "session_id": ObjectId(session_id),
+            "purpose": "fingerprint",
+            "used": False,
+            "issued_at": now,
+            "expires_at": now + timedelta(seconds=s.nonce_ttl_seconds),
+        }
+    )
     return nonce
 
 
@@ -141,7 +116,6 @@ def main() -> int:
     print(f"  target {args.url}")
     print(f"  uid    {uid}")
 
-    # ------------------------------------------------------------------ #
     print()
     print("[1] Health")
     r = c.http.get(f"{api}/health")
@@ -158,7 +132,6 @@ def main() -> int:
         print("      skin). Run the server with LIVENESS_MIN_SCORE=0.55 for this test.")
         print("      The production default 0.70 is for REAL faces - do not lower it.")
 
-    # ------------------------------------------------------------------ #
     print()
     print("[2] Enrolment (operator)")
     peserta_payload = {
@@ -219,17 +192,12 @@ def main() -> int:
         files=[("frames", (f"m{i}.jpg", f, "image/jpeg")) for i, f in enumerate(mixed)],
         headers=c.operator,
     )
-    # Informational, NOT an assertion. Synthetic "different people" score ~0.79
-    # against each other (real strangers score ~0.1), which is above the 0.60
-    # ENROLL_CONSISTENCY_MIN floor - so these fixtures cannot trip the check.
-    # Lowering that floor to make a cartoon fail would weaken a real safeguard.
     if r.status_code == 400 and r.json().get("error_code") == "ENROLL_FRAMES_INCONSISTENT":
         check(True, "mixed-identity enrolment refused")
     else:
         print("  [~] mixed-identity enrolment NOT exercised - synthetic faces are too")
         print("      similar to each other to trip ENROLL_CONSISTENCY_MIN. Needs real photos.")
 
-    # Re-enrol cleanly after the rejected attempt.
     c.http.post(
         f"{api}/enrollment/face",
         data={"no_bpjs": args.no_bpjs, "replace": "true"},
@@ -240,10 +208,6 @@ def main() -> int:
         headers=c.operator,
     )
 
-    # ------------------------------------------------------------------ #
-    # Session A exercises the challenge mechanism and spoof rejection, then is
-    # discarded. Synthetic faces cannot satisfy a TURN challenge, so the happy
-    # path uses a separate session that never requests one.
     print()
     print("[3] Liveness challenge + spoof rejection (session A)")
     sid_a, stoken_a = start_session(c, api, args.no_bpjs, device_uid)
@@ -265,8 +229,7 @@ def main() -> int:
     r = c.http.post(
         f"{api}/verification/sessions/{sid_a}/face",
         files=[
-            ("frames", (f"s{i}.jpg", f, "image/jpeg"))
-            for i, f in enumerate(synth.still("andi", seed=100))
+            ("frames", (f"s{i}.jpg", f, "image/jpeg")) for i, f in enumerate(synth.still("andi", seed=100))
         ],
         data={"meta": "{}"},
         headers=sh_a,
@@ -281,13 +244,11 @@ def main() -> int:
     )
     c.http.post(f"{api}/verification/sessions/{sid_a}/cancel", headers=sh_a)
 
-    # ------------------------------------------------------------------ #
     print()
     print("[4] Session start (session B - happy path)")
     sid, stoken = start_session(c, api, args.no_bpjs, device_uid, preview_check=True)
     sh = {**c.auth, "X-Session-Token": stoken}
 
-    # ------------------------------------------------------------------ #
     print()
     print("[5] Ordering guards")
     r = c.http.post(
@@ -316,7 +277,6 @@ def main() -> int:
     )
     check(r.status_code == 403, "wrong session token -> 403", f"got {r.status_code}")
 
-    # ------------------------------------------------------------------ #
     print()
     print("[6] Step 1 - Scan Wajah")
     t0 = time.perf_counter()
@@ -344,7 +304,6 @@ def main() -> int:
     fp_nonce = body["nonce"]
     check(bool(fp_nonce), "fresh nonce issued after face", fp_nonce[:12] + "...")
 
-    # ------------------------------------------------------------------ #
     print()
     print("[7] Step 2 - Scan Sidik Jari")
     ts = int(datetime.now(UTC).timestamp())
@@ -444,7 +403,6 @@ def main() -> int:
         "Tier A honestly recorded as SOFTWARE, not TEE",
     )
 
-    # ------------------------------------------------------------------ #
     print()
     print("[8] Step 3 - Periksa Ulang Data")
     r = c.http.get(f"{api}/verification/sessions/{sid}/review", headers=sh)
@@ -462,9 +420,7 @@ def main() -> int:
         "both biometric factors reported as passed",
     )
 
-    r = c.http.post(
-        f"{api}/verification/sessions/{sid}/review", json={"confirmed": False}, headers=sh
-    )
+    r = c.http.post(f"{api}/verification/sessions/{sid}/review", json={"confirmed": False}, headers=sh)
     check(r.status_code == 400, "unconfirmed review refused", f"got {r.status_code}")
 
     r = c.http.post(
@@ -474,13 +430,10 @@ def main() -> int:
     )
     check(r.status_code == 200, "review confirmed")
 
-    # ------------------------------------------------------------------ #
     print()
     print("[9] Step 4 - Verifikasi Data")
     key = str(uuid.uuid4())
-    r = c.http.post(
-        f"{api}/verification/sessions/{sid}/commit", json={"idempotency_key": key}, headers=sh
-    )
+    r = c.http.post(f"{api}/verification/sessions/{sid}/commit", json={"idempotency_key": key}, headers=sh)
     commit = r.json()
     check(r.status_code == 200, "commit succeeded", r.text[:200] if r.status_code != 200 else "")
     check(
@@ -493,9 +446,7 @@ def main() -> int:
     for s in commit["risk"]["signals"]:
         print(f"      signal {s['rule_id']} ({s['severity']}, +{s['weight']}) {s['title']}")
 
-    r2 = c.http.post(
-        f"{api}/verification/sessions/{sid}/commit", json={"idempotency_key": key}, headers=sh
-    )
+    r2 = c.http.post(f"{api}/verification/sessions/{sid}/commit", json={"idempotency_key": key}, headers=sh)
     check(
         r2.status_code == 200 and r2.json().get("receipt_no") == receipt,
         "commit is idempotent - same key returns the same receipt",
@@ -508,7 +459,6 @@ def main() -> int:
     )
     check(r3.status_code == 409, "commit with a DIFFERENT key refused", f"got {r3.status_code}")
 
-    # ------------------------------------------------------------------ #
     print()
     print("[10] History")
     r = c.http.get(f"{api}/verification/history?limit=5", headers=c.auth)
@@ -537,7 +487,6 @@ def main() -> int:
     r = c.http.get(f"{api}/verification/history", headers={"Authorization": f"Bearer dev:{other}"})
     check(r.status_code == 404, "another user cannot read this history", f"got {r.status_code}")
 
-    # ------------------------------------------------------------------ #
     print()
     print("[11] Fraud engine")
     r = c.http.post(f"{api}/fraud/check", json={"session_id": sid}, headers=c.operator)
@@ -549,7 +498,6 @@ def main() -> int:
     r = c.http.get(f"{api}/fraud/rules", headers=c.operator)
     check(r.status_code == 200 and len(r.json()["rules"]) == 10, "10 rules registered")
 
-    # ------------------------------------------------------------------ #
     print()
     print("[12] Legacy symptom endpoint (revived)")
     r = c.http.post(f"{args.url}/analyze_symptoms", json={"gejala": ["Demam", "Batuk"]})

@@ -1,13 +1,3 @@
-"""The pre-inference quality gate, calibrated against real phone captures.
-
-Every number here comes from verification_sessions written by the app on a
-physical Android phone in good light (brightness ~115): whole-frame Laplacian
-variance of 19, 38, 43, 70 and 76 on frames downscaled to 640 px. All five were
-sharp enough for SCRFD and ArcFace; all five were rejected by the old
-threshold of 100 before detection ever ran, and the third rejection ended the
-session. This file exists so that cannot quietly happen again.
-"""
-
 from __future__ import annotations
 
 import cv2
@@ -21,8 +11,9 @@ OBSERVED_PHONE_BLUR_VARS = [19.1, 38.0, 43.0, 69.7, 75.9]
 
 
 def _frame_with_variance(target: float, size=(480, 640)) -> np.ndarray:
-    """A mostly-flat grey frame with just enough noise to hit a given
-    Laplacian variance - what a selfie against a wall looks like to the gate."""
+    """A mostly-flat grey frame with just enough noise to hit a given Laplacian variance - what a selfie
+    against a wall looks like to the gate.
+    """
     rng = np.random.default_rng(0)
     lo, hi = 0.0, 40.0
     for _ in range(40):
@@ -60,8 +51,9 @@ def test_dark_and_blown_out_frames_still_fail() -> None:
 
 
 def test_face_crop_sharpness_is_the_real_sharpness_check() -> None:
-    """A sharp face on a flat wall: the whole frame measures low, the crop
-    measures high. The gate must judge the crop."""
+    """A sharp face on a flat wall: the whole frame measures low, the crop measures high. The gate must judge
+    the crop.
+    """
     rng = np.random.default_rng(2)
     frame = np.full((480, 640, 3), 115, dtype=np.uint8)
     face = np.clip(120 + rng.normal(0, 30, (200, 160, 3)), 0, 255).astype(np.uint8)
@@ -77,8 +69,9 @@ def test_face_crop_sharpness_is_the_real_sharpness_check() -> None:
 
 
 def test_quality_failures_are_not_identity_failures() -> None:
-    """The codes that get the separate, larger budget are exactly the ones that
-    carry no information about who is in front of the camera."""
+    """The codes that get the separate, larger budget are exactly the ones that carry no information about who
+    is in front of the camera.
+    """
     assert face_router.QUALITY_CODES == {
         "LOW_QUALITY_BLUR",
         "LOW_QUALITY_LIGHT",
@@ -91,8 +84,9 @@ def test_quality_failures_are_not_identity_failures() -> None:
 
 
 def test_quality_retries_do_not_consume_identity_attempts() -> None:
-    """Live-DB check of the two budgets. Ten blurry frames must leave the
-    three identity attempts untouched and the session open."""
+    """Live-DB check of the two budgets. Ten blurry frames must leave the three identity attempts untouched
+    and the session open.
+    """
     import asyncio
     from datetime import UTC, datetime, timedelta
 
@@ -147,7 +141,6 @@ def test_quality_retries_do_not_consume_identity_attempts() -> None:
             assert updated["steps"]["face"]["quality_retries"] == settings.face_max_quality_retries - 1
             assert updated["status"] == "created"
 
-            # One real mismatch charges the identity budget, and only it.
             updated, n, exhausted = await session_service.record_failure(
                 db,
                 session,

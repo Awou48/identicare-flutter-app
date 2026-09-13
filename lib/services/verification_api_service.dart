@@ -8,17 +8,11 @@ import 'package:identicare_mobile/models/verification_history.dart';
 import 'package:identicare_mobile/models/verification_session.dart';
 import 'package:identicare_mobile/services/identicare_api_client.dart';
 
-/// Pembungkus bertipe untuk endpoint verifikasi.
-///
-/// Setiap langkah dijaga state machine di server. Klien tidak pernah memajukan
-/// langkahnya sendiri - ia hanya mengirim dan membaca `next_step` dari respons.
 class VerificationApiService {
   VerificationApiService(this._client);
 
   final IdenticareApiClient _client;
 
-  /// Mulai sesi. Mengembalikan session_id + session_token yang dibawa klien
-  /// melintasi keempat layar, plus pratinjau peserta yang MASIH BERTOPENG.
   Future<ApiResult<VerificationSession>> startSession({
     required String noBpjs,
     required String kodeFaskes,
@@ -44,16 +38,13 @@ class VerificationApiService {
     return _map(result, VerificationSession.fromJson);
   }
 
-  /// Daftarkan (atau perbarui) rahasia attestation perangkat ini di server.
-  ///
-  /// Idempoten - dipanggil setiap kali alur dimulai. Tanpa ini langkah sidik
-  /// jari selalu berakhir DEVICE_NOT_ENROLLED: server tidak punya rahasia untuk
-  /// memverifikasi tanda tangannya.
-  Future<ApiResult<Map<String, dynamic>>> enrollDevice(Map<String, dynamic> payload) {
+  Future<ApiResult<Map<String, dynamic>>> enrollDevice(
+      Map<String, dynamic> payload) {
     return _client.postJson('/enrollment/device', body: payload);
   }
 
-  Future<ApiResult<SessionState>> getSession(String sessionId, String token) async {
+  Future<ApiResult<SessionState>> getSession(
+      String sessionId, String token) async {
     final result = await _client.getJson(
       '/verification/sessions/$sessionId',
       sessionToken: token,
@@ -61,9 +52,6 @@ class VerificationApiService {
     return _map(result, SessionState.fromJson);
   }
 
-  /// Minta tantangan liveness. Server mengembalikan tantangan yang SAMA selama
-  /// masih berlaku, supaya penyerang tidak bisa mengulang permintaan sampai
-  /// mendapat arah yang cocok dengan video rekamannya.
   Future<ApiResult<LivenessChallenge>> requestChallenge(
     String sessionId,
     String token,
@@ -75,7 +63,6 @@ class VerificationApiService {
     return _map(result, LivenessChallenge.fromJson);
   }
 
-  /// Langkah 1. Unggah burst frame sebagai multipart.
   Future<ApiResult<FaceStepResult>> submitFace({
     required String sessionId,
     required String token,
@@ -91,7 +78,6 @@ class VerificationApiService {
     return _map(result, FaceStepResult.fromJson);
   }
 
-  /// Langkah 2. Tanda tangan atas payload kanonik yang diterbitkan server.
   Future<ApiResult<FingerprintStepResult>> submitFingerprint({
     required String sessionId,
     required String token,
@@ -118,8 +104,8 @@ class VerificationApiService {
     return _map(result, FingerprintStepResult.fromJson);
   }
 
-  /// Langkah 3, ambil data. Hanya bisa diakses setelah KEDUA faktor lolos.
-  Future<ApiResult<ReviewData>> fetchReview(String sessionId, String token) async {
+  Future<ApiResult<ReviewData>> fetchReview(
+      String sessionId, String token) async {
     final result = await _client.getJson(
       '/verification/sessions/$sessionId/review',
       sessionToken: token,
@@ -139,7 +125,6 @@ class VerificationApiService {
     );
   }
 
-  /// Langkah 4. Idempoten: kunci yang sama mengembalikan nomor bukti yang sama.
   Future<ApiResult<CommitResult>> commit({
     required String sessionId,
     required String token,
@@ -153,7 +138,8 @@ class VerificationApiService {
     return _map(result, CommitResult.fromJson);
   }
 
-  Future<ApiResult<Map<String, dynamic>>> cancel(String sessionId, String token) {
+  Future<ApiResult<Map<String, dynamic>>> cancel(
+      String sessionId, String token) {
     return _client.postJson(
       '/verification/sessions/$sessionId/cancel',
       sessionToken: token,
@@ -177,20 +163,16 @@ class VerificationApiService {
     return _client.getJson('/verification/history/$sessionId');
   }
 
-  /// Daftar gejala dari server, menggantikan 42 string hardcoded di
-  /// symptom_checker_page.dart.
   Future<ApiResult<List<String>>> fetchSymptomCatalog() async {
     final result = await _client.getJson('/symptoms/catalog');
-    return _map(result, (json) => ((json['gejala'] as List?) ?? const []).cast<String>());
+    return _map(result,
+        (json) => ((json['gejala'] as List?) ?? const []).cast<String>());
   }
 
   Future<ApiResult<Map<String, dynamic>>> analyzeSymptoms(List<String> gejala) {
     return _client.postJson('/symptoms/analyze', body: {'gejala': gejala});
   }
 
-  // --- Override petugas (break-glass) ------------------------------- //
-
-  /// Login petugas. Token berumur satu shift dan hanya disimpan di memori.
   Future<ApiResult<StaffSession>> staffLogin({
     required String nip,
     required String password,
@@ -202,7 +184,6 @@ class VerificationApiService {
     return _map(result, StaffSession.fromJson);
   }
 
-  /// Ajukan override setelah biometrik gagal. Bukti foto dikirim multipart.
   Future<ApiResult<Map<String, dynamic>>> requestOverride({
     required String sessionId,
     required String sessionToken,
@@ -224,8 +205,6 @@ class VerificationApiService {
     );
   }
 
-  /// Supervisor menyetujui. HARUS petugas yang berbeda dari pengaju - dicek di
-  /// server terhadap data tersimpan, bukan terhadap klaim dari klien.
   Future<ApiResult<Map<String, dynamic>>> approveOverride({
     required String sessionId,
     required String sessionToken,
@@ -270,9 +249,6 @@ class VerificationApiService {
     );
   }
 
-  // ---------------------- Artikel & status peserta -------------------- //
-
-  /// Daftar artikel. Publik - tidak memerlukan token.
   Future<ApiResult<ArticlePage>> fetchArticles({
     int limit = 20,
     int skip = 0,
@@ -294,30 +270,22 @@ class VerificationApiService {
     final result = await _client.getJson('/articles/$slug');
     return _map(
       result,
-      (json) => Article.fromJson((json['article'] as Map).cast<String, dynamic>()),
+      (json) =>
+          Article.fromJson((json['article'] as Map).cast<String, dynamic>()),
     );
   }
 
   Future<ApiResult<List<String>>> fetchArticleCategories() async {
     final result = await _client.getJson('/articles/categories');
-    return _map(result, (json) => ((json['kategori'] as List?) ?? const []).cast<String>());
+    return _map(result,
+        (json) => ((json['kategori'] as List?) ?? const []).cast<String>());
   }
 
-  /// Status peserta milik pengguna yang login.
-  ///
-  /// Tidak menerima no_bpjs: server menentukan pesertanya dari firebase_uid
-  /// pada token, sehingga tidak ada cara menanyakan status orang lain.
   Future<ApiResult<PesertaStatus>> pesertaMe() async {
     final result = await _client.getJson('/peserta/me');
     return _map(result, PesertaStatus.fromJson);
   }
 
-  /// Tautkan akun login ke satu peserta BPJS dengan bukti kepemilikan
-  /// (nomor BPJS + NIK + tanggal lahir - ketiganya ada di kartu fisik).
-  ///
-  /// Inilah jembatan antara Firebase Auth dan data BPJS di MongoDB yang
-  /// sebelumnya tidak ada untuk pengguna biasa: tanpa langkah ini setiap akun
-  /// baru berakhir di PESERTA_NOT_FOUND di semua layar.
   Future<ApiResult<Map<String, dynamic>>> linkBpjs({
     required String noBpjs,
     required String nik,
@@ -330,20 +298,12 @@ class VerificationApiService {
     });
   }
 
-  /// Pendaftaran biometrik mandiri oleh peserta dari ponselnya sendiri.
-  ///
-  /// Diautentikasi dengan token Firebase peserta, bukan kunci operator - kunci
-  /// operator tidak boleh ada di dalam aplikasi pasien, karena siapa pun yang
-  /// memilikinya bisa mendaftarkan wajah apa pun ke nomor BPJS siapa pun.
-  /// Server menentukan pesertanya dari firebase_uid, jadi nomor BPJS tidak
-  /// dikirim dari sini.
   Future<ApiResult<Map<String, dynamic>>> enrollSelf(List<List<int>> frames) {
     return _client.postMultipart('/enrollment/self', files: frames);
   }
 
   Future<ApiResult<Map<String, dynamic>>> health() => _client.health();
 
-  // ------------------------------------------------------------------ //
   ApiResult<T> _map<T>(
     ApiResult<Map<String, dynamic>> result,
     T Function(Map<String, dynamic>) parse,
@@ -353,8 +313,6 @@ class VerificationApiService {
         try {
           return Ok(parse(json));
         } catch (e) {
-          // Bentuk respons tidak sesuai kontrak. Lebih baik gagal jelas di sini
-          // daripada meledak jauh di dalam widget tree.
           return ApiFailure<T>(
             errorCode: 'PARSE_ERROR',
             message: 'Format data dari server tidak sesuai.',
@@ -393,7 +351,6 @@ class VerificationApiService {
   }
 }
 
-/// Konstanta yang harus sejalan dengan backend.
 class VerificationConstants {
   VerificationConstants._();
 
@@ -401,7 +358,6 @@ class VerificationConstants {
   static const String methodKeystore = 'android_keystore_ec_p256';
   static const String keyAlias = 'identicare_bpjs_v1';
 
-  /// Prefiks payload kanonik yang ditandatangani kedua sisi.
   static const String payloadPrefix = 'identicare-v1';
 
   static String canonicalPayload({

@@ -7,11 +7,6 @@ import 'package:identicare_mobile/config/app_config.dart';
 import 'package:identicare_mobile/models/api_result.dart';
 import 'package:identicare_mobile/services/auth_service.dart';
 
-/// Satu-satunya jalur keluar jaringan aplikasi.
-///
-/// Semua permintaan lewat sini supaya penanganan token, timeout, dan amplop
-/// error konsisten. Yang lama (`api_service.dart`) menelan setiap exception
-/// menjadi satu string, sehingga timeout tidak bisa dibedakan dari 500.
 class IdenticareApiClient {
   IdenticareApiClient(this._authService, {http.Client? httpClient})
       : _http = httpClient ?? http.Client();
@@ -34,15 +29,12 @@ class IdenticareApiClient {
     if (token != null) headers['Authorization'] = 'Bearer $token';
 
     if (sessionToken != null) headers['X-Session-Token'] = sessionToken;
-    // Header terpisah dari Authorization: satu permintaan bisa sah membawa
-    // token peserta DAN token petugas sekaligus - pasien hadir di meja sementara
-    // petugas yang bertindak - dan menyatukannya akan membuat itu ambigu.
+
     if (staffToken != null) headers['X-Staff-Token'] = staffToken;
     if (includeFaskesKey) headers['X-Api-Key'] = AppConfig.faskesApiKey;
     return headers;
   }
 
-  // ------------------------------------------------------------------ //
   Future<ApiResult<Map<String, dynamic>>> getJson(
     String path, {
     String? sessionToken,
@@ -55,7 +47,9 @@ class IdenticareApiClient {
       final response = await _http
           .get(uri,
               headers: await _headers(
-                  sessionToken: sessionToken, staffToken: staffToken, json: false))
+                  sessionToken: sessionToken,
+                  staffToken: staffToken,
+                  json: false))
           .timeout(AppConfig.jsonTimeout);
       return _decode(response);
     });
@@ -84,17 +78,10 @@ class IdenticareApiClient {
     });
   }
 
-  /// Unggah multipart untuk frame wajah.
-  ///
-  /// Multipart, bukan base64 di dalam JSON: base64 membengkakkan tiap JPEG 33%
-  /// (sekitar 120 KB ekstra per percobaan untuk burst 3 frame), menambah satu
-  /// putaran encode/decode di kedua sisi, dan memaksa server menahan seluruh
-  /// request sebagai string sebelum diurai.
   Future<ApiResult<Map<String, dynamic>>> postMultipart(
     String path, {
     List<List<int>> files = const [],
     String fileField = 'frames',
-    /// Berkas dengan nama field masing-masing, mis. evidence_bpjs / evidence_ktp.
     Map<String, List<int>> namedFiles = const {},
     Map<String, String> fields = const {},
     String? sessionToken,
@@ -102,14 +89,15 @@ class IdenticareApiClient {
     bool includeFaskesKey = false,
   }) async {
     return _guard(() async {
-      final request = http.MultipartRequest('POST', Uri.parse('${AppConfig.apiV1}$path'))
-        ..headers.addAll(await _headers(
-          sessionToken: sessionToken,
-          staffToken: staffToken,
-          json: false,
-          includeFaskesKey: includeFaskesKey,
-        ))
-        ..fields.addAll(fields);
+      final request =
+          http.MultipartRequest('POST', Uri.parse('${AppConfig.apiV1}$path'))
+            ..headers.addAll(await _headers(
+              sessionToken: sessionToken,
+              staffToken: staffToken,
+              json: false,
+              includeFaskesKey: includeFaskesKey,
+            ))
+            ..fields.addAll(fields);
 
       for (var i = 0; i < files.length; i++) {
         request.files.add(http.MultipartFile.fromBytes(
@@ -131,7 +119,6 @@ class IdenticareApiClient {
     });
   }
 
-  // ------------------------------------------------------------------ //
   Future<ApiResult<Map<String, dynamic>>> _guard(
     Future<ApiResult<Map<String, dynamic>>> Function() action,
   ) async {
@@ -150,8 +137,6 @@ class IdenticareApiClient {
         details: {'detail': e.message},
       );
     } catch (e) {
-      // Timeout dan sisanya. Dibedakan supaya pengguna tahu harus menunggu,
-      // bukan mengira datanya salah.
       final isTimeout = e.toString().toLowerCase().contains('timeout');
       return ApiFailure(
         errorCode: isTimeout ? 'TIMEOUT' : 'UNKNOWN_ERROR',
@@ -165,7 +150,8 @@ class IdenticareApiClient {
 
   ApiFailure<Map<String, dynamic>> _networkFailure(String detail) {
     if (kDebugMode) {
-      debugPrint('[IdenticareApiClient] tidak dapat menjangkau ${AppConfig.apiBaseUrl}: $detail');
+      debugPrint(
+          '[IdenticareApiClient] tidak dapat menjangkau ${AppConfig.apiBaseUrl}: $detail');
     }
     return ApiFailure(
       errorCode: 'NETWORK_ERROR',
@@ -193,7 +179,6 @@ class IdenticareApiClient {
       return Ok(body);
     }
 
-    // Amplop error bersama dari backend.
     return ApiFailure(
       errorCode: body['error_code'] as String? ?? 'HTTP_${response.statusCode}',
       message: body['message'] as String? ?? 'Terjadi kesalahan pada server.',
@@ -203,6 +188,5 @@ class IdenticareApiClient {
     );
   }
 
-  /// Cek kesehatan server. Dipakai layar diagnostik override base URL.
   Future<ApiResult<Map<String, dynamic>>> health() => getJson('/health');
 }

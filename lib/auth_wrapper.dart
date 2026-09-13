@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:identicare_mobile/main_navigator.dart'; 
+import 'package:identicare_mobile/main_navigator.dart';
 import 'package:identicare_mobile/pages/auth_page.dart';
 import 'package:identicare_mobile/services/auth_service.dart';
 import 'package:provider/provider.dart';
@@ -20,8 +20,8 @@ class AuthWrapper extends StatelessWidget {
           if (user == null) {
             return const AuthPage();
           }
-          // Jika sudah login, arahkan ke MainNavigator
-          return const MainNavigator(); 
+
+          return const MainNavigator();
         }
         return const Scaffold(
           body: Center(

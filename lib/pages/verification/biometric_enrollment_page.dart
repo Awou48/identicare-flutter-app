@@ -6,21 +6,12 @@ import 'package:identicare_mobile/theme/app_theme.dart';
 import 'package:identicare_mobile/widgets/verification/face_camera_overlay.dart';
 import 'package:provider/provider.dart';
 
-/// Pendaftaran biometrik mandiri.
-///
-/// Ini yang menutup jalan buntu pada fitur utama: sebelumnya menekan
-/// "Verifikasi Klaim BPJS" tanpa punya template wajah hanya menghasilkan pesan
-/// error tanpa tindak lanjut, dan tidak ada satu pun cara di dalam aplikasi
-/// untuk mendaftar.
-///
-/// Hasilnya dicatat sebagai SELF_ASSERTED - lebih lemah daripada pendaftaran
-/// yang diverifikasi petugas dengan KTP, dan membawa batas nilai klaim.
-/// Halaman ini mengatakannya terus terang, bukan menyembunyikannya.
 class BiometricEnrollmentPage extends StatefulWidget {
   const BiometricEnrollmentPage({super.key});
 
   @override
-  State<BiometricEnrollmentPage> createState() => _BiometricEnrollmentPageState();
+  State<BiometricEnrollmentPage> createState() =>
+      _BiometricEnrollmentPageState();
 }
 
 class _BiometricEnrollmentPageState extends State<BiometricEnrollmentPage>
@@ -55,7 +46,8 @@ class _BiometricEnrollmentPageState extends State<BiometricEnrollmentPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_capture.isReady) return;
-    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
       _capture.pause();
     } else if (state == AppLifecycleState.resumed) {
       _capture.resume();
@@ -141,8 +133,10 @@ class _BiometricEnrollmentPageState extends State<BiometricEnrollmentPage>
                 FittedBox(
                   fit: BoxFit.cover,
                   child: SizedBox(
-                    width: _capture.controller!.value.previewSize?.height ?? 480,
-                    height: _capture.controller!.value.previewSize?.width ?? 640,
+                    width:
+                        _capture.controller!.value.previewSize?.height ?? 480,
+                    height:
+                        _capture.controller!.value.previewSize?.width ?? 640,
                     child: CameraPreview(_capture.controller!),
                   ),
                 ),
@@ -184,9 +178,6 @@ class _BiometricEnrollmentPageState extends State<BiometricEnrollmentPage>
             _errorBox(),
             const SizedBox(height: AppSpacing.md),
           ],
-          // UU PDP 27/2022 menggolongkan data biometrik sebagai data pribadi
-          // spesifik: persetujuannya harus eksplisit dan untuk tujuan tertentu,
-          // bukan tersirat dari menekan tombol.
           CheckboxListTile(
             value: _consented,
             onChanged: _submitting
@@ -214,7 +205,8 @@ class _BiometricEnrollmentPageState extends State<BiometricEnrollmentPage>
                     ),
                   )
                 : const Icon(Icons.how_to_reg_rounded),
-            label: Text(_submitting ? 'Mendaftarkan...' : 'Daftarkan Wajah Saya'),
+            label:
+                Text(_submitting ? 'Mendaftarkan...' : 'Daftarkan Wajah Saya'),
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
@@ -225,8 +217,6 @@ class _BiometricEnrollmentPageState extends State<BiometricEnrollmentPage>
   }
 
   Widget _errorBox() {
-    // DUPLICATE_FACE tidak boleh dibingkai sebagai kesalahan pengguna: artinya
-    // wajah ini sudah terdaftar atas peserta lain, dan itu sudah dilaporkan.
     final duplicate = _errorCode == 'DUPLICATE_FACE';
     final color = duplicate ? AppColors.warning : AppColors.danger;
     return Container(
@@ -257,8 +247,10 @@ class _BiometricEnrollmentPageState extends State<BiometricEnrollmentPage>
   }
 
   Widget _success() {
-    final quality = (_result!['quality'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final dedup = (_result!['dedup'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final quality =
+        (_result!['quality'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final dedup =
+        (_result!['dedup'] as Map?)?.cast<String, dynamic>() ?? const {};
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
@@ -269,7 +261,8 @@ class _BiometricEnrollmentPageState extends State<BiometricEnrollmentPage>
             child: CircleAvatar(
               radius: 52,
               backgroundColor: AppColors.brandSoft,
-              child: Icon(Icons.verified_user_rounded, size: 58, color: AppColors.brand),
+              child: Icon(Icons.verified_user_rounded,
+                  size: 58, color: AppColors.brand),
             ),
           ),
           const SizedBox(height: AppSpacing.xl),
@@ -279,7 +272,7 @@ class _BiometricEnrollmentPageState extends State<BiometricEnrollmentPage>
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text(
+          const Text(
             'Anda sekarang dapat melakukan verifikasi klaim BPJS.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.ink700),
@@ -288,8 +281,10 @@ class _BiometricEnrollmentPageState extends State<BiometricEnrollmentPage>
           _row('Frame digunakan', '${_result!['frames_used'] ?? '-'}'),
           if (quality['det_score'] != null)
             _row('Kualitas deteksi', '${quality['det_score']}'),
-          if (quality['face_px'] != null) _row('Ukuran wajah', '${quality['face_px']} px'),
-          _row('Dicek terhadap', '${dedup['candidates_checked'] ?? 0} template lain'),
+          if (quality['face_px'] != null)
+            _row('Ukuran wajah', '${quality['face_px']} px'),
+          _row('Dicek terhadap',
+              '${dedup['candidates_checked'] ?? 0} template lain'),
           _row('Tingkat jaminan', '${_result!['assurance'] ?? '-'}'),
           const SizedBox(height: AppSpacing.lg),
           Container(
@@ -323,9 +318,13 @@ class _BiometricEnrollmentPageState extends State<BiometricEnrollmentPage>
         child: Row(
           children: [
             Expanded(
-              child: Text(label, style: TextStyle(color: AppColors.ink700, fontSize: 13)),
+              child: Text(label,
+                  style:
+                      const TextStyle(color: AppColors.ink700, fontSize: 13)),
             ),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            Text(value,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
           ],
         ),
       );
@@ -345,7 +344,9 @@ class _BiometricEnrollmentPageState extends State<BiometricEnrollmentPage>
           children: [
             Icon(icon, size: 56, color: AppColors.ink500),
             const SizedBox(height: AppSpacing.lg),
-            Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(title,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: AppSpacing.sm),
             Text(body, textAlign: TextAlign.center),
             if (actionLabel != null) ...[

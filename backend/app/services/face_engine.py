@@ -1,19 +1,3 @@
-"""Face detection (SCRFD) and recognition (ArcFace) via onnxruntime.
-
-No face-recognition Python package is installed. We run InsightFace's published
-ONNX graphs directly, which is what avoids the MSVC/Cython build wall that
-`pip install insightface` hits on Python 3.12 + Windows. Same models, same
-accuracy, none of the toolchain pain.
-
-Models (download manually into backend/models/, see README):
-  det_500m.onnx   SCRFD-500MF   ~2.5 MB   boxes + 5 keypoints
-  w600k_r50.onnx  ArcFace R50   ~166 MB   512-d embedding
-
-Both sessions are created once at startup and reused. ONNX Runtime sessions are
-thread-safe for concurrent `run()`, so the FastAPI layer can call these from a
-worker thread without extra locking.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -26,16 +10,13 @@ import onnxruntime as ort
 
 log = logging.getLogger(__name__)
 
-# The canonical ArcFace 5-point reference, in 112x112 space. Every ArcFace model
-# ever published expects faces warped onto exactly these coordinates; changing
-# them silently degrades every embedding.
 ARCFACE_REF = np.array(
     [
-        [38.2946, 51.6963],  # left eye
-        [73.5318, 51.5014],  # right eye
-        [56.0252, 71.7366],  # nose tip
-        [41.5493, 92.3655],  # left mouth corner
-        [70.7299, 92.2041],  # right mouth corner
+        [38.2946, 51.6963],
+        [73.5318, 51.5014],
+        [56.0252, 71.7366],
+        [41.5493, 92.3655],
+        [70.7299, 92.2041],
     ],
     dtype=np.float32,
 )
@@ -46,8 +27,8 @@ REC_SIZE = 112
 
 @dataclass
 class Face:
-    bbox: np.ndarray  # [x1, y1, x2, y2]
-    kps: np.ndarray  # (5, 2)
+    bbox: np.ndarray
+    kps: np.ndarray
     det_score: float
     sharpness: float = 0.0
     embedding: np.ndarray | None = None
@@ -69,19 +50,7 @@ class Face:
         return self.width * self.height
 
     def yaw_proxy(self) -> float:
-        """Cheap left/right head-turn estimate from the 5 keypoints.
-
-        Horizontal offset of the nose from the eye midpoint, normalised by the
-        inter-ocular distance. Not a calibrated angle - it only has to be
-        monotonic in head yaw and stable in scale.
-
-        An earlier version compared eye-to-nose *distances* normalised by face
-        width. That was far too insensitive: a large nose displacement moved it
-        by only ~0.03, because Euclidean distance to each eye changes
-        sub-linearly with horizontal shift and face width is roughly twice the
-        inter-ocular distance. The offset form below responds roughly 25x more
-        strongly to the same movement.
-        """
+        """Cheap left/right head-turn estimate from the 5 keypoints."""
         left_eye, right_eye, nose = self.kps[0], self.kps[1], self.kps[2]
         eye_mid_x = (float(left_eye[0]) + float(right_eye[0])) / 2.0
         interocular = abs(float(right_eye[0]) - float(left_eye[0]))
@@ -104,9 +73,6 @@ class FrameAnalysis:
     extras: dict = field(default_factory=dict)
 
 
-# --------------------------------------------------------------------------- #
-# SCRFD decode helpers
-# --------------------------------------------------------------------------- #
 def _distance2bbox(points: np.ndarray, distance: np.ndarray) -> np.ndarray:
     x1 = points[:, 0] - distance[:, 0]
     y1 = points[:, 1] - distance[:, 1]
@@ -142,9 +108,6 @@ def _nms(dets: np.ndarray, thresh: float = 0.4) -> list[int]:
     return keep
 
 
-# --------------------------------------------------------------------------- #
-# Engine
-# --------------------------------------------------------------------------- #
 class FaceEngine:
     def __init__(
         self,
@@ -172,8 +135,6 @@ class FaceEngine:
         self.rec_input = self.rec.get_inputs()[0].name
         self.rec_output = self.rec.get_outputs()[0].name
 
-        # SCRFD variants differ in output count. 9 outputs = with keypoints,
-        # 6 = boxes only (unusable here, we need the keypoints for alignment).
         n_out = len(self.det_outputs)
         self.fmc = 3
         self.feat_strides = [8, 16, 32]
@@ -199,9 +160,6 @@ class FaceEngine:
             self.embedding_dim,
         )
 
-    # ----------------------------------------------------------------- #
-    # Detection
-    # ----------------------------------------------------------------- #
     def detect(self, img_bgr: np.ndarray) -> list[Face]:
         """Detect faces. Letterboxes into DET_SIZE and maps results back."""
         h, w = img_bgr.shape[:2]
@@ -245,19 +203,12 @@ class FaceEngine:
         pre = np.hstack([bboxes, scores[:, None]]).astype(np.float32)
         keep = _nms(pre, self.nms_thresh)
 
-        faces = [
-            Face(bbox=bboxes[i], kps=kpss[i], det_score=float(scores[i])) for i in keep
-        ]
+        faces = [Face(bbox=bboxes[i], kps=kpss[i], det_score=float(scores[i])) for i in keep]
         faces.sort(key=lambda f: f.area, reverse=True)
         return faces
 
-    # ----------------------------------------------------------------- #
-    # Recognition
-    # ----------------------------------------------------------------- #
     def align(self, img_bgr: np.ndarray, kps: np.ndarray) -> np.ndarray:
-        matrix, _ = cv2.estimateAffinePartial2D(
-            kps.astype(np.float32), ARCFACE_REF, method=cv2.LMEDS
-        )
+        matrix, _ = cv2.estimateAffinePartial2D(kps.astype(np.float32), ARCFACE_REF, method=cv2.LMEDS)
         if matrix is None:
             raise ValueError("could not estimate alignment transform")
         return cv2.warpAffine(img_bgr, matrix, (REC_SIZE, REC_SIZE), borderValue=0)
@@ -273,16 +224,14 @@ class FaceEngine:
         return (vec / norm).astype(np.float32) if norm else vec.astype(np.float32)
 
 
-# --------------------------------------------------------------------------- #
-# Process-wide singleton
-# --------------------------------------------------------------------------- #
 _engine: FaceEngine | None = None
 _load_error: str | None = None
 
 
 def load_engine(det_model: Path, rec_model: Path, intra_op_threads: int = 4) -> FaceEngine | None:
-    """Load once. Returns None (and records why) if the models are absent, so the
-    rest of the API still boots - only the face endpoints degrade."""
+    """Load once. Returns None (and records why) if the models are absent, so the rest of the API still boots
+    - only the face endpoints degrade.
+    """
     global _engine, _load_error
     if _engine is not None:
         return _engine
@@ -296,7 +245,7 @@ def load_engine(det_model: Path, rec_model: Path, intra_op_threads: int = 4) -> 
     try:
         _engine = FaceEngine(Path(det_model), Path(rec_model), intra_op_threads=intra_op_threads)
         _load_error = None
-    except Exception as exc:  # noqa: BLE001 - surfaced through /health
+    except Exception as exc:
         _load_error = f"{type(exc).__name__}: {exc}"
         log.exception("Failed to load face models")
         return None

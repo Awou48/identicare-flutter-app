@@ -1,5 +1,3 @@
-"""Session lifecycle: create, resume, review, commit, cancel."""
-
 from __future__ import annotations
 
 import logging
@@ -30,7 +28,6 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/verification", tags=["verification"])
 
 
-
 @router.post("/sessions", response_model=SessionCreated, status_code=201)
 async def start_session(
     payload: SessionCreate,
@@ -45,12 +42,8 @@ async def start_session(
         raise ApiError("PESERTA_NOT_FOUND", 404)
 
     if peserta.get("status_kepesertaan") == "NONAKTIF":
-        raise ApiError(
-            "PESERTA_NONAKTIF", 403, details={"status": peserta["status_kepesertaan"]}
-        )
+        raise ApiError("PESERTA_NONAKTIF", 403, details={"status": peserta["status_kepesertaan"]})
 
-    # The template is the truth, not the peserta.biometric_enrolled flag: the
-    # flag is also set by seeded placeholder rows, which are not enrolments.
     if await matcher.get_active_template(db, peserta["_id"]) is None:
         raise ApiError("BIOMETRIC_NOT_ENROLLED", 409)
 
@@ -62,9 +55,6 @@ async def start_session(
     if device and device.get("blocked"):
         raise ApiError("DEVICE_BLOCKED", 423)
 
-    # Rate limit: five open sessions an hour per participant. Without this an
-    # attacker gets unlimited fresh nonces and unlimited face attempts by simply
-    # abandoning each session after two tries.
     since = datetime.now(UTC) - timedelta(hours=1)
     recent = await db.verification_sessions.count_documents(
         {"peserta_id": peserta["_id"], "created_at": {"$gte": since}}
@@ -118,9 +108,6 @@ async def start_session(
         current_step="face",
         nonce=session["nonce"],
         nonce_expires_at=session["nonce_expires_at"],
-        # Masked on purpose: full participant data is only revealed at step 3,
-        # after both biometric factors have passed. Otherwise anyone who guesses
-        # a BPJS number could read the record.
         peserta_preview=PesertaPreview(
             nama_masked=crypto.mask_name(peserta["nama_lengkap"]),
             no_bpjs_masked=crypto.mask_bpjs(peserta["no_bpjs"]),
@@ -159,13 +146,8 @@ async def cancel_session(
     return OkResponse()
 
 
-# --------------------------------------------------------------------------- #
-# Step 3 - Periksa Ulang Data
-# --------------------------------------------------------------------------- #
 @router.get("/sessions/{session_id}/review", response_model=ReviewData)
-async def get_review(
-    session_id: str, db: DbDep, token: SessionTokenDep, _user: CurrentUserDep
-) -> ReviewData:
+async def get_review(session_id: str, db: DbDep, token: SessionTokenDep, _user: CurrentUserDep) -> ReviewData:
     session = await session_service.load(db, session_id, token)
     await session_service.assert_live(db, session)
     session_service.require_state(session, "review")
@@ -176,8 +158,6 @@ async def get_review(
 
     faskes = await db.facilities.find_one({"_id": session["context"]["faskes_id"]})
 
-    # This is the first point in the flow where the real NIK is decrypted, and it
-    # is still only ever shown masked. The decryption is recorded.
     nik_masked = "****"
     if peserta.get("nik_enc"):
         kek = database.get_kek()
@@ -186,7 +166,7 @@ async def get_review(
             nik = crypto.decrypt_blob(kek, peserta["nik_enc"], aad).decode()
             nik_masked = crypto.mask_nik(nik)
             del nik
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("NIK decrypt failed for peserta %s", peserta["_id"])
         await audit.record(
             db,
@@ -275,9 +255,6 @@ async def confirm_review(
     return {"status": "ok", "step": "review", "result": "passed", "next_step": "commit"}
 
 
-# --------------------------------------------------------------------------- #
-# Step 4 - Verifikasi Data
-# --------------------------------------------------------------------------- #
 @router.post("/sessions/{session_id}/commit", response_model=CommitResponse)
 async def commit(
     session_id: str,
@@ -287,15 +264,7 @@ async def commit(
     _user: CurrentUserDep,
     request_id: RequestIdDep,
 ) -> CommitResponse:
-    """Final decision.
-
-    Re-reads the session, asserts every required step actually passed, and
-    re-runs the fraud rules SERVER-SIDE. A score the client carried across four
-    screens is never trusted - that is the whole reason the state machine lives
-    here.
-
-    Idempotent: committing twice with the same key returns the same receipt.
-    """
+    """Final decision."""
     session = await session_service.load(db, session_id, token)
 
     if session["status"] == "committed":
@@ -324,16 +293,12 @@ async def commit(
     score, band, decision, signals = await fraud_rules.evaluate(
         db, session, peserta=peserta, face_collisions=collisions
     )
-    await fraud_rules.persist(
-        db, signals, peserta_id=peserta["_id"], session_id=session["_id"]
-    )
+    await fraud_rules.persist(db, signals, peserta_id=peserta["_id"], session_id=session["_id"])
 
     now = datetime.now(UTC)
     receipt = None
     if decision != "REJECTED":
-        receipt = session_service.receipt_number(
-            await session_service.next_receipt_seq(db), now
-        )
+        receipt = session_service.receipt_number(await session_service.next_receipt_seq(db), now)
 
     result = {
         "decision": decision,

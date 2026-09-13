@@ -1,5 +1,3 @@
-"""Staff accounts and login."""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -16,22 +14,13 @@ from app.utils.errors import ApiError
 
 router = APIRouter(prefix="/staff", tags=["staff"])
 
-# The override screen lives on the PARTICIPANT's phone, so the staff login
-# form is in the hands of the person with the most to gain from guessing a
-# nurse's password. Five wrong guesses per NIP lock that NIP for fifteen
-# minutes - for everyone, including the real owner. That is the point: a
-# locked-out nurse notices and reports it; a silently brute-forced one does not.
 LOGIN_MAX_FAILURES = 5
 LOGIN_LOCKOUT = timedelta(minutes=15)
 
 
 @router.post("/login")
 async def login(payload: dict, db: DbDep) -> dict:
-    """Exchange credentials for a short-lived staff token (one shift).
-
-    Failure is deliberately indistinguishable between "no such account" and
-    "wrong password", so the endpoint cannot be used to enumerate staff.
-    """
+    """Exchange credentials for a short-lived staff token (one shift)."""
     nip = (payload.get("nip") or "").strip()
     password = payload.get("password") or ""
     if not nip or not password:
@@ -51,8 +40,6 @@ async def login(payload: dict, db: DbDep) -> dict:
     staff = await db.staff.find_one({"nip": nip, "active": True})
     unauthorized = ApiError("UNAUTHENTICATED", 401, message="NIP atau kata sandi salah.")
     if not staff or not staff_auth.verify_password(password, staff["password_hash"]):
-        # Keyed by NIP, not by account: an unknown NIP is counted too, so the
-        # lockout cannot be used to confirm which NIPs exist.
         await audit.record(db, who=f"staff-login:{nip}", what="staff_login_failed", purpose="login_petugas")
         raise unauthorized
 

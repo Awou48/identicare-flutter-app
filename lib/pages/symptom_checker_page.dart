@@ -17,18 +17,49 @@ class _SymptomCheckerPageState extends State<SymptomCheckerPage> {
   final ApiService _apiService = ApiService();
   bool _isLoading = false;
 
-  /// Daftar cadangan kalau server tidak dapat dihubungi. Sumber utamanya
-  /// sekarang GET /api/v1/symptoms/catalog, sehingga model AI bisa menambah
-  /// atau mengubah gejala tanpa merilis ulang aplikasi.
   List<String> _allSymptoms = [
-    'Sakit kepala', 'Pusing', 'Migrain', 'Kehilangan keseimbangan', 'Batuk', 'Sesak Napas', 'Pilek',
-    'Nyeri dada saat bernapas', 'Mual', 'Muntah', 'Diare', 'Sakit perut', 'Sembelit',
-    'Nafsu makan menurun', 'Detak jantung tidak teratur', 'Nyeri dada', 'Tekanan darah tinggi',
-    'Mudah lelah', 'Demam', 'Menggigil', 'Berkeringat berlebihan', 'Tubuh terasa lemas', 'Nyeri otot',
-    'Sendi kaku', 'Bengkak', 'Sulit bergerak (sendi/otot)', 'Mata merah', 'Penglihatan kabur',
-    'Bengkak (mata)', 'Mata sulit fokus/bergerak normal', 'Sakit tenggorokan', 'Hidung tersumbat',
-    'Gangguan pendengaran', 'Sakit telinga', 'Ruam', 'Gatal-gatal', 'Luka tidak sembuh', 'Kulit kering',
-    'Stres', 'Cemas', 'Sulit tidur', 'Mudah marah'
+    'Sakit kepala',
+    'Pusing',
+    'Migrain',
+    'Kehilangan keseimbangan',
+    'Batuk',
+    'Sesak Napas',
+    'Pilek',
+    'Nyeri dada saat bernapas',
+    'Mual',
+    'Muntah',
+    'Diare',
+    'Sakit perut',
+    'Sembelit',
+    'Nafsu makan menurun',
+    'Detak jantung tidak teratur',
+    'Nyeri dada',
+    'Tekanan darah tinggi',
+    'Mudah lelah',
+    'Demam',
+    'Menggigil',
+    'Berkeringat berlebihan',
+    'Tubuh terasa lemas',
+    'Nyeri otot',
+    'Sendi kaku',
+    'Bengkak',
+    'Sulit bergerak (sendi/otot)',
+    'Mata merah',
+    'Penglihatan kabur',
+    'Bengkak (mata)',
+    'Mata sulit fokus/bergerak normal',
+    'Sakit tenggorokan',
+    'Hidung tersumbat',
+    'Gangguan pendengaran',
+    'Sakit telinga',
+    'Ruam',
+    'Gatal-gatal',
+    'Luka tidak sembuh',
+    'Kulit kering',
+    'Stres',
+    'Cemas',
+    'Sulit tidur',
+    'Mudah marah'
   ];
 
   final Set<String> _selectedSymptoms = {};
@@ -49,8 +80,6 @@ class _SymptomCheckerPageState extends State<SymptomCheckerPage> {
           setState(() => _allSymptoms = gejala);
         }
       },
-      // Bukan kegagalan yang perlu ditampilkan: daftar cadangan tetap dipakai,
-      // jadi pengguna tidak terhalang saat server tidak terjangkau.
       failure: (_) {},
     );
   }
@@ -58,15 +87,20 @@ class _SymptomCheckerPageState extends State<SymptomCheckerPage> {
   Future<void> _processSymptoms() async {
     if (_selectedSymptoms.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pilih minimal satu gejala.'), backgroundColor: Colors.orange),
+        const SnackBar(
+            content: Text('Pilih minimal satu gejala.'),
+            backgroundColor: Colors.orange),
       );
       return;
     }
 
-    setState(() { _isLoading = true; });
+    setState(() {
+      _isLoading = true;
+    });
 
-    final result = await _apiService.analyzeSymptoms(_selectedSymptoms.toList());
     final user = Provider.of<AuthService>(context, listen: false).currentUser;
+    final result =
+        await _apiService.analyzeSymptoms(_selectedSymptoms.toList());
 
     if (mounted && result['status'] == 'ok' && user != null) {
       try {
@@ -80,18 +114,23 @@ class _SymptomCheckerPageState extends State<SymptomCheckerPage> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Gagal menyimpan riwayat: $e'), backgroundColor: Colors.red),
+            SnackBar(
+                content: Text('Gagal menyimpan riwayat: $e'),
+                backgroundColor: Colors.red),
           );
         }
       }
     }
 
-    setState(() { _isLoading = false; });
+    setState(() {
+      _isLoading = false;
+    });
 
     if (mounted) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => ResultPage(analysisResult: result)),
+        MaterialPageRoute(
+            builder: (context) => ResultPage(analysisResult: result)),
       );
     }
   }
@@ -106,7 +145,7 @@ class _SymptomCheckerPageState extends State<SymptomCheckerPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16,0,16,16),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Text(
               'Pilih semua gejala yang Anda rasakan saat ini. Semakin detail, semakin baik analisisnya.',
               style: TextStyle(fontSize: 16, color: Colors.grey.shade700),

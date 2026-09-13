@@ -1,10 +1,3 @@
-"""State machine, fraud rules, attestation and liveness scoring.
-
-Pure unit tests - no server, no MongoDB. These cover the logic that decides
-whether a BPJS claim is approved, which is the part that must not regress
-silently.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -22,9 +15,6 @@ from app.utils.errors import ApiError
 from app.utils.geo import haversine_km, implied_speed_kmh
 
 
-# --------------------------------------------------------------------------- #
-# State machine
-# --------------------------------------------------------------------------- #
 def _session(status: str) -> dict:
     return {"_id": "s1", "status": status, "steps": {}}
 
@@ -54,8 +44,9 @@ def test_require_state_allows_the_expected_step() -> None:
 
 
 def test_cannot_skip_the_face_step() -> None:
-    """The attack this guard exists for: jump straight to fingerprint, or to
-    review, and never submit a face at all."""
+    """The attack this guard exists for: jump straight to fingerprint, or to review, and never submit a face
+    at all.
+    """
     for step in ("fingerprint", "review", "commit"):
         with pytest.raises(ApiError) as exc:
             session_service.require_state(_session("created"), step)
@@ -95,8 +86,9 @@ def test_receipt_number_format() -> None:
 
 
 def test_public_view_hides_the_session_token() -> None:
-    """The client already holds the token; echoing it back only widens the blast
-    radius of any log or crash report that captures a response body."""
+    """The client already holds the token; echoing it back only widens the blast radius of any log or crash
+    report that captures a response body.
+    """
     session = {
         "_id": "abc",
         "session_token": "SECRET-TOKEN",
@@ -115,21 +107,21 @@ def test_public_view_hides_the_session_token() -> None:
     assert view["current_step"] == "fingerprint"
 
 
-# --------------------------------------------------------------------------- #
-# Matching decision
-# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize(
     ("score", "expected"),
-    [(0.90, "accept"), (0.42, "accept"), (0.41, "review"), (0.30, "review"),
-     (0.29, "reject"), (-0.5, "reject")],
+    [
+        (0.90, "accept"),
+        (0.42, "accept"),
+        (0.41, "review"),
+        (0.30, "review"),
+        (0.29, "reject"),
+        (-0.5, "reject"),
+    ],
 )
 def test_decide_thresholds(score: float, expected: str) -> None:
     assert matcher.decide(score, 0.42, 0.30) == expected
 
 
-# --------------------------------------------------------------------------- #
-# Fraud scoring
-# --------------------------------------------------------------------------- #
 def _signal(rule_id: str, severity: str, weight: int) -> fraud_rules.Signal:
     return fraud_rules.Signal(rule_id, severity, weight, "t", {})
 
@@ -143,8 +135,9 @@ def test_bands() -> None:
 
 
 def test_a_critical_signal_overrides_a_low_score() -> None:
-    """Duplicate claims and face collisions must reject regardless of arithmetic
-    - they are categorically disqualifying, not just risky."""
+    """Duplicate claims and face collisions must reject regardless of arithmetic - they are categorically
+    disqualifying, not just risky.
+    """
     critical = [_signal("SIMULTANEOUS_CLAIM", "critical", 40)]
     assert fraud_rules.band_for(5, critical) == ("HIGH", "REJECTED")
 
@@ -172,7 +165,7 @@ def test_menunggak_scales_with_arrears() -> None:
 
 def test_off_hours_skips_emergency_poli() -> None:
     """An IGD visit at 02:00 is a hospital working normally, not a fraud signal."""
-    at_0200_wib = datetime(2026, 9, 8, 19, 0, tzinfo=UTC)  # 02:00 WIB next day
+    at_0200_wib = datetime(2026, 9, 8, 19, 0, tzinfo=UTC)
     assert fraud_rules._off_hours({"claim": {"poli": "Umum"}}, at_0200_wib)
     assert fraud_rules._off_hours({"claim": {"poli": "IGD"}}, at_0200_wib) == []
 
@@ -184,17 +177,15 @@ def test_face_collision_is_critical() -> None:
     assert fraud_rules.band_for(0, signals)[1] == "REJECTED"
 
 
-# --------------------------------------------------------------------------- #
-# Geo
-# --------------------------------------------------------------------------- #
 def test_haversine_jakarta_to_wamena() -> None:
     km = haversine_km([106.7996, -6.1789], [138.95, -4.0833])
     assert 3400 < km < 3700
 
 
 def test_simultaneous_claims_imply_infinite_speed() -> None:
-    """Two claims in the same minute at different cities: dividing by zero
-    elapsed time must report the fraud, not crash."""
+    """Two claims in the same minute at different cities: dividing by zero elapsed time must report the fraud,
+    not crash.
+    """
     assert implied_speed_kmh(500.0, 0.0) == float("inf")
     assert implied_speed_kmh(0.0, 0.0) == 0.0
 
@@ -203,12 +194,8 @@ def test_speed_calculation() -> None:
     assert implied_speed_kmh(120.0, 60.0) == pytest.approx(120.0)
 
 
-# --------------------------------------------------------------------------- #
-# Fingerprint attestation
-# --------------------------------------------------------------------------- #
 def _payload(**over) -> str:
-    args = dict(session_id="s1", nonce="n1", device_uid="d1", no_bpjs="0001234567890",
-                timestamp=1757000000)
+    args = dict(session_id="s1", nonce="n1", device_uid="d1", no_bpjs="0001234567890", timestamp=1757000000)
     args.update(over)
     return attestation.canonical_payload(**args)
 
@@ -231,9 +218,7 @@ def test_hmac_rejects_a_tampered_payload() -> None:
     """A signature captured for one session must not validate against another."""
     secret = b"k" * 32
     sig = hmac.new(secret, _payload().encode(), hashlib.sha256).digest()
-    out = attestation.verify_hmac(
-        payload=_payload(session_id="other"), signature=sig, shared_secret=secret
-    )
+    out = attestation.verify_hmac(payload=_payload(session_id="other"), signature=sig, shared_secret=secret)
     assert not out.ok and out.error_code == "SIGNATURE_INVALID"
 
 
@@ -244,13 +229,15 @@ def test_hmac_rejects_the_wrong_secret() -> None:
 
 
 def test_hmac_is_reported_as_software_not_tee() -> None:
-    """Tier A has no hardware binding. Recording it as TEE would launder a shared
-    secret into a hardware guarantee in the audit log."""
+    """Tier A has no hardware binding. Recording it as TEE would launder a shared secret into a hardware
+    guarantee in the audit log.
+    """
     secret = b"k" * 32
     sig = hmac.new(secret, _payload().encode(), hashlib.sha256).digest()
-    assert attestation.verify_hmac(
-        payload=_payload(), signature=sig, shared_secret=secret
-    ).security_level == "SOFTWARE"
+    assert (
+        attestation.verify_hmac(payload=_payload(), signature=sig, shared_secret=secret).security_level
+        == "SOFTWARE"
+    )
 
 
 def test_ec_p256_roundtrip_and_rejection() -> None:
@@ -271,9 +258,7 @@ def test_ec_p256_roundtrip_and_rejection() -> None:
     other_der = other.public_key().public_bytes(
         serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
     )
-    assert not attestation.verify_ec_p256(
-        payload=payload, signature=sig, public_key_der=other_der
-    ).ok
+    assert not attestation.verify_ec_p256(payload=payload, signature=sig, public_key_der=other_der).ok
 
 
 def test_unknown_method_is_not_supported() -> None:
@@ -288,18 +273,15 @@ def test_parse_attestation_survives_garbage() -> None:
     assert "error" in out
 
 
-# --------------------------------------------------------------------------- #
-# Liveness scoring
-# --------------------------------------------------------------------------- #
 def _face(cx: float, nose_dx: float = 0.0, size: float = 200.0) -> Face:
     half = size / 2
     kps = np.array(
         [
-            [cx - 40, 100.0],            # left eye
-            [cx + 40, 100.0],            # right eye
-            [cx + nose_dx, 140.0],       # nose
-            [cx - 25, 180.0],            # left mouth
-            [cx + 25, 180.0],            # right mouth
+            [cx - 40, 100.0],
+            [cx + 40, 100.0],
+            [cx + nose_dx, 140.0],
+            [cx - 25, 180.0],
+            [cx + 25, 180.0],
         ],
         dtype=np.float32,
     )
@@ -314,33 +296,27 @@ def test_yaw_proxy_is_zero_when_centred_and_signed_when_not() -> None:
 
 
 def test_yaw_proxy_is_scale_invariant() -> None:
-    """Normalising by inter-ocular distance means moving nearer the camera must
-    not read as turning."""
+    """Normalising by inter-ocular distance means moving nearer the camera must not read as turning."""
     small, big = _face(200, nose_dx=10), _face(200, nose_dx=10, size=400)
     assert small.yaw_proxy() == pytest.approx(big.yaw_proxy())
 
 
 def test_motion_score_plateau() -> None:
-    """A hand-held phone moves keypoints only a few pixels between frames. The
-    earlier curve peaked at ~20 px and scored real captures at 0.15, which would
-    have failed genuine users."""
+    """A hand-held phone moves keypoints only a few pixels between frames. The earlier curve peaked at ~20 px
+    and scored real captures at 0.15, which would have failed genuine users.
+    """
     backend = liveness.ActiveChallengeV1()
-    # The metric is mean |delta| over BOTH axes of all 5 keypoints, so a purely
-    # horizontal shift of N px registers as N/2.
-    assert backend._motion_score([_face(200), _face(200)]) == 0.0        # frozen -> photo
-    assert 0.0 < backend._motion_score([_face(200), _face(202)]) < 1.0   # 1.0 mean, ramping
-    assert backend._motion_score([_face(200), _face(208)]) == 1.0        # 4.0 mean, alive
-    assert backend._motion_score([_face(200), _face(220)]) == 1.0        # 10.0 mean, alive
-    assert backend._motion_score([_face(200), _face(400)]) == 0.0        # teleport -> cut
+    assert backend._motion_score([_face(200), _face(200)]) == 0.0
+    assert 0.0 < backend._motion_score([_face(200), _face(202)]) < 1.0
+    assert backend._motion_score([_face(200), _face(208)]) == 1.0
+    assert backend._motion_score([_face(200), _face(220)]) == 1.0
+    assert backend._motion_score([_face(200), _face(400)]) == 0.0
 
 
 def test_challenge_scoring() -> None:
     backend = liveness.ActiveChallengeV1()
     turned = [_face(200), _face(200, nose_dx=25)]
     assert backend._challenge_score(turned, "turn_left") == pytest.approx(1.0)
-    # Until the front-camera mirroring sign is confirmed on real devices the
-    # magnitude of the turn is scored, so the opposite direction passes too.
-    # Flip STRICT_TURN_DIRECTION and this becomes 0.0.
     strict = liveness.STRICT_TURN_DIRECTION
     try:
         liveness.STRICT_TURN_DIRECTION = False
@@ -349,9 +325,7 @@ def test_challenge_scoring() -> None:
         assert backend._challenge_score(turned, "turn_right") == 0.0
     finally:
         liveness.STRICT_TURN_DIRECTION = strict
-    # A static face never satisfies a turn, in either mode.
     assert backend._challenge_score([_face(200), _face(200)], "turn_left") == 0.0
-    # No challenge issued -> neutral, never a free pass.
     assert backend._challenge_score(turned, None) == 0.5
 
 
@@ -363,8 +337,9 @@ def test_move_closer_uses_area_growth() -> None:
 
 
 def test_a_single_frame_fails_closed() -> None:
-    """One frame cannot demonstrate motion, so it must not be awarded the motion
-    and challenge weights by default."""
+    """One frame cannot demonstrate motion, so it must not be awarded the motion and challenge weights by
+    default.
+    """
     result = liveness.ActiveChallengeV1().evaluate([], [_face(200)], "turn_left", 0.7)
     assert not result.passed and result.score == 0.0
 
@@ -378,25 +353,18 @@ def test_new_challenge_is_random() -> None:
     assert len({liveness.new_challenge() for _ in range(120)}) > 1
 
 
-# --------------------------------------------------------------------------- #
-# Session expiry
-# --------------------------------------------------------------------------- #
 def test_expiry_is_computed_from_expires_at() -> None:
     past = datetime.now(UTC) - timedelta(seconds=1)
     future = datetime.now(UTC) + timedelta(minutes=5)
     assert past < datetime.now(UTC) < future
 
 
-# --------------------------------------------------------------------------- #
-# Placeholder templates
-# --------------------------------------------------------------------------- #
 def test_seeded_placeholder_is_never_an_enrolment() -> None:
-    """seed_peserta.py writes random unit vectors tagged PLACEHOLDER_*. On the
-    first device test they made the app believe the participant was enrolled,
-    skip self-enrolment, and then fail every match at cosine ~0.05."""
+    """seed_peserta.py writes random unit vectors tagged PLACEHOLDER_*. On the first device test they made the
+    app believe the participant was enrolled, skip self-enrolment, and then fail every match at cosine ~0.05.
+    """
     assert matcher.is_placeholder({"model": {"name": "PLACEHOLDER_random_unit_vector"}})
     assert not matcher.is_placeholder({"model": {"name": "w600k_r50"}})
     assert not matcher.is_placeholder({})
     assert not matcher.is_placeholder(None)
-    # The Mongo filter used by get_active_template and the 1:N sweep.
     assert matcher.REAL_TEMPLATE_FILTER == {"model.name": {"$not": {"$regex": "^PLACEHOLDER"}}}

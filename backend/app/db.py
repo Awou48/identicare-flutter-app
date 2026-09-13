@@ -1,9 +1,3 @@
-"""Async MongoDB access.
-
-pymongo >= 4.10 ships AsyncMongoClient natively; motor is deprecated and its EOL
-has passed, so it is deliberately not used here.
-"""
-
 from __future__ import annotations
 
 import numpy as np
@@ -16,7 +10,6 @@ from app.security import crypto, rotation
 _client: AsyncMongoClient | None = None
 _db: AsyncDatabase | None = None
 
-# Loaded once at startup and held in process memory, never in MongoDB.
 _kek: bytes | None = None
 _rotation: np.ndarray | None = None
 
@@ -39,7 +32,6 @@ async def disconnect() -> None:
     if _client is not None:
         await _client.close()
     _client, _db = None, None
-    # Drop key material on shutdown rather than leaving it in a module global.
     _kek, _rotation = None, None
 
 

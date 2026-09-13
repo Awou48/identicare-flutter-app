@@ -1,24 +1,3 @@
-"""Break-glass: staff override when biometrics legitimately cannot pass.
-
-WHY THIS EXISTS. Before it, three failed face attempts rejected the session and
-that was the end. The proposal itself names faces unscannable because of bruising
-or swelling, and fingers unreadable after burns. So the system as built denied
-care to exactly the vulnerable groups it claims to serve. That is not an edge
-case - in a trauma ward it is Tuesday.
-
-DESIGN PRINCIPLE: the override must be MORE expensive and MORE visible than the
-happy path. Otherwise it stops being a safety valve and becomes the fraud
-mechanism - the easiest route for an insider is always the one with the fewest
-checks. Hence:
-
-  * two distinct staff members, the approver holding `supervisor`,
-  * a reason code from a fixed enum (free text alone is unanalysable),
-  * photographs of the physical BPJS card and KTP, encrypted at rest,
-  * the failed attempts already in verification_events stand as evidence,
-  * the decision is APPROVED_WITH_OVERRIDE, never plain APPROVED,
-  * two fraud signals fire, one of them critical above a per-staff frequency.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -37,9 +16,6 @@ from app.utils.errors import ApiError
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/verification/sessions", tags=["override"])
 
-# A nurse has to physically find a supervisor. The normal 10-minute session TTL
-# is far too short for that, so requesting an override extends the window -
-# otherwise the feature would be unusable in the exact situation it exists for.
 APPROVAL_WINDOW = timedelta(minutes=30)
 
 MAX_EVIDENCE_BYTES = 5 * 1024 * 1024
@@ -85,9 +61,6 @@ async def request_override(
             message="Alasan 'LAINNYA' wajib dijelaskan minimal 10 karakter.",
         )
 
-    # Evidence is how a reviewer later reconstructs whether the override was
-    # justified. Without it the audit trail records only that someone asserted
-    # a reason.
     kek = database.get_kek()
     evidence: dict[str, object] = {}
     for label, upload in (("bpjs_card", evidence_bpjs), ("ktp", evidence_ktp)):
@@ -117,8 +90,6 @@ async def request_override(
                     "requested_at": now,
                     "approved_by": None,
                     "evidence": evidence,
-                    # Snapshot of WHY biometrics failed, so a reviewer does not
-                    # have to reconstruct it from the event log.
                     "failed_evidence": {
                         "face_attempts": face.get("attempts"),
                         "face_error": face.get("error_code"),
@@ -127,7 +98,6 @@ async def request_override(
                         "fingerprint_error": fingerprint.get("error_code"),
                     },
                 },
-                # Extend the clock: the approver has to walk over here.
                 "expires_at": now + APPROVAL_WINDOW,
                 "updated_at": now,
             }
@@ -190,9 +160,6 @@ async def approve_override(
     override = session.get("override") or {}
     requested_by = override.get("requested_by")
 
-    # FOUR EYES. Checked against what is stored, never against anything the
-    # client claims. A single compromised account must not be able to both
-    # request and approve.
     if requested_by is not None and str(requested_by) == supervisor.staff_id:
         raise ApiError(
             "FOUR_EYES_REQUIRED",
@@ -207,9 +174,6 @@ async def approve_override(
 
     now = datetime.now(UTC)
 
-    # Write the approval BEFORE evaluating, because the fraud rules read
-    # `override.approved_by` to compute MANUAL_OVERRIDE and the per-staff
-    # frequency. Evaluating first would always score the override as absent.
     session["override"] = {
         **override,
         "status": "approved",
@@ -226,10 +190,6 @@ async def approve_override(
         db, session, peserta=peserta, face_collisions=[]
     )
 
-    # An override never yields a clean APPROVED. If the rules would have said
-    # APPROVED, it becomes APPROVED_WITH_OVERRIDE; a REJECTED verdict still
-    # stands, because an override is for failed biometrics, not for overruling
-    # duplicate-claim or face-collision findings.
     final_decision = "APPROVED_WITH_OVERRIDE" if decision != "REJECTED" else "REJECTED"
 
     await fraud_rules.persist(db, signals, peserta_id=peserta["_id"], session_id=session["_id"])
@@ -364,8 +324,9 @@ async def reject_override(
 
 @router.get("/{session_id}/override")
 async def get_override(session_id: str, db: DbDep, token: SessionTokenDep) -> dict:
-    """Read the override record. Evidence blobs are never returned - they are
-    operator-only and read through the auditor console with an audit entry."""
+    """Read the override record. Evidence blobs are never returned - they are operator-only and read through
+    the auditor console with an audit entry.
+    """
     session = await session_service.load(db, session_id, token)
     override = session.get("override") or {}
     if not override:

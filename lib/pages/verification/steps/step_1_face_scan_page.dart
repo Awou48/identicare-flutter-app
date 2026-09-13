@@ -8,7 +8,6 @@ import 'package:identicare_mobile/state/verification_flow_controller.dart';
 import 'package:identicare_mobile/widgets/verification/face_camera_overlay.dart';
 import 'package:provider/provider.dart';
 
-/// Langkah 1 - Scan Wajah.
 class Step1FaceScanPage extends StatefulWidget {
   const Step1FaceScanPage({super.key});
 
@@ -43,18 +42,15 @@ class _Step1FaceScanPageState extends State<Step1FaceScanPage>
       _permissionDenied = init.permissionDenied;
     });
     if (init.ok) {
-      // Tantangan liveness diterbitkan server dan bersifat sekali pakai, jadi
-      // ia diminta sebelum pengambilan gambar, bukan sesudahnya.
       await context.read<VerificationFlowController>().loadChallenge();
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Android melepaskan kamera saat aplikasi ke background. Tanpa penanganan
-    // ini, preview kembali dalam keadaan mati begitu pengguna kembali.
     if (!_capture.isReady) return;
-    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
       _capture.pause();
     } else if (state == AppLifecycleState.resumed) {
       _capture.resume();
@@ -68,17 +64,6 @@ class _Step1FaceScanPageState extends State<Step1FaceScanPage>
     super.dispose();
   }
 
-  /// Koreografi pengambilan gambar.
-  ///
-  /// Liveness dinilai dari PERUBAHAN antara frame pertama dan terakhir: kepala
-  /// harus lurus di frame 1 dan sudah menoleh di frame 3. Burst 3 frame dalam
-  /// 0,7 detik tepat saat tombol ditekan tidak memberi kesempatan untuk itu -
-  /// pengguna yang sudah menoleh sebelum menekan, atau yang baru membaca
-  /// instruksi sesudahnya, sama-sama menghasilkan dua frame yang identik dan
-  /// skor tantangan 0. Itu persis pola kegagalan 0,49-0,51 di uji perangkat.
-  ///
-  /// Jadi: minta wajah lurus, ambil frame 1; baru tampilkan instruksi, beri
-  /// waktu untuk menoleh, lalu ambil frame 2-3.
   Future<void> _scan() async {
     final controller = context.read<VerificationFlowController>();
     controller.clearError();
@@ -123,7 +108,8 @@ class _Step1FaceScanPageState extends State<Step1FaceScanPage>
     }
   }
 
-  String _instructionFor(VerificationFlowController controller, LivenessChallenge? challenge) {
+  String _instructionFor(
+      VerificationFlowController controller, LivenessChallenge? challenge) {
     switch (_phase) {
       case _CapturePhase.neutral:
         return 'Hadapkan wajah lurus ke kamera';
@@ -132,8 +118,7 @@ class _Step1FaceScanPageState extends State<Step1FaceScanPage>
             '($_framesTaken/${AppConfig.faceBurstFrames})';
       case _CapturePhase.idle:
         if (controller.isBusy) return 'Memproses...';
-        // Sebelum menekan tombol, pengguna hanya perlu tahu apa yang akan
-        // diminta - bukan melakukannya sekarang.
+
         return challenge == null
             ? 'Posisikan wajah di dalam oval'
             : 'Siap? Nanti Anda diminta: ${challenge.instruction.toLowerCase()}';
@@ -183,15 +168,14 @@ class _Step1FaceScanPageState extends State<Step1FaceScanPage>
             fit: StackFit.expand,
             children: [
               if (_capture.isReady)
-                // clipBehavior wajib: FittedBox.cover memperbesar preview
-                // melebihi area ini dan, tanpa klip, bagian lebihnya digambar
-                // DI ATAS indikator langkah dan judul halaman.
                 FittedBox(
                   fit: BoxFit.cover,
                   clipBehavior: Clip.hardEdge,
                   child: SizedBox(
-                    width: _capture.controller!.value.previewSize?.height ?? 480,
-                    height: _capture.controller!.value.previewSize?.width ?? 640,
+                    width:
+                        _capture.controller!.value.previewSize?.height ?? 480,
+                    height:
+                        _capture.controller!.value.previewSize?.width ?? 640,
                     child: CameraPreview(_capture.controller!),
                   ),
                 ),
@@ -250,7 +234,8 @@ class _Footer extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline, color: Color(0xFFD93025), size: 18),
+                  const Icon(Icons.error_outline,
+                      color: Color(0xFFD93025), size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(error, style: const TextStyle(fontSize: 13)),
@@ -269,13 +254,11 @@ class _Footer extends StatelessWidget {
             const SizedBox(height: 12),
           ],
           if (exhausted) ...[
-            // Sebelumnya ini jalan buntu. Wajah yang tidak bisa dipindai karena
-            // memar atau bengkak berarti pasien ditolak - padahal justru mereka
-            // yang paling butuh layanan. Override petugas adalah jalan sahnya.
             const Text(
               'Batas percobaan tercapai.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFFD93025), fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  color: Color(0xFFD93025), fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
             Text(
@@ -298,7 +281,8 @@ class _Footer extends StatelessWidget {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
                     )
                   : const Icon(Icons.face_retouching_natural),
               label: Text(controller.isBusy
@@ -334,7 +318,9 @@ class _CameraError extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              permissionDenied ? Icons.no_photography_outlined : Icons.videocam_off_outlined,
+              permissionDenied
+                  ? Icons.no_photography_outlined
+                  : Icons.videocam_off_outlined,
               size: 56,
               color: Colors.grey.shade500,
             ),

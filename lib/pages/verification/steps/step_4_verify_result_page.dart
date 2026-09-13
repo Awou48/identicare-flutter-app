@@ -5,10 +5,6 @@ import 'package:identicare_mobile/state/verification_flow_controller.dart';
 import 'package:identicare_mobile/widgets/verification/status_badge.dart';
 import 'package:provider/provider.dart';
 
-/// Langkah 4 - Verifikasi Data.
-///
-/// Keputusan dibuat sepenuhnya di server: commit menjalankan ulang seluruh
-/// aturan fraud, dan skor apa pun yang dibawa klien tidak dipercaya.
 class Step4VerifyResultPage extends StatefulWidget {
   const Step4VerifyResultPage({super.key});
 
@@ -23,10 +19,11 @@ class _Step4VerifyResultPageState extends State<Step4VerifyResultPage> {
   Widget build(BuildContext context) {
     final controller = context.watch<VerificationFlowController>();
 
-    // Sama seperti langkah 3: hanya commit ketika langkah ini yang aktif.
-    // IndexedStack membangun halaman ini sejak awal alur.
     final active = controller.currentStep == SessionStep.commit;
-    if (active && !_committed && controller.commitResult == null && !controller.isBusy) {
+    if (active &&
+        !_committed &&
+        controller.commitResult == null &&
+        !controller.isBusy) {
       _committed = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => controller.commit());
     }
@@ -114,7 +111,8 @@ class _Result extends StatelessWidget {
           Text(
             _headline,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _color),
+            style: TextStyle(
+                fontSize: 22, fontWeight: FontWeight.bold, color: _color),
           ),
           const SizedBox(height: 8),
           Text(
@@ -123,7 +121,6 @@ class _Result extends StatelessWidget {
             style: TextStyle(color: Colors.grey.shade700),
           ),
           const SizedBox(height: 24),
-
           if (result.receiptNo != null)
             Container(
               padding: const EdgeInsets.all(16),
@@ -135,7 +132,8 @@ class _Result extends StatelessWidget {
               child: Column(
                 children: [
                   Text('Nomor Bukti Verifikasi',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                   const SizedBox(height: 6),
                   SelectableText(
                     result.receiptNo!,
@@ -150,7 +148,6 @@ class _Result extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 16),
-
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -178,11 +175,13 @@ class _Result extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text('Skor ${result.riskScore}/100',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    style:
+                        TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                 if (result.signals.isNotEmpty) ...[
                   const Divider(height: 24),
                   const Text('Sinyal terdeteksi',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                      style:
+                          TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                   const SizedBox(height: 8),
                   ...result.signals.map((s) => _SignalRow(signal: s)),
                 ],
@@ -190,7 +189,6 @@ class _Result extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-
           if (result.summary.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(16),
@@ -229,10 +227,10 @@ class _Result extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 28),
-
           FilledButton(
             onPressed: () => Navigator.of(context).pop(result),
-            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+            style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14)),
             child: const Text('Selesai'),
           ),
           const SizedBox(height: 24),
@@ -287,7 +285,8 @@ class _SignalRow extends StatelessWidget {
 }
 
 class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({required this.icon, required this.label, required this.value});
+  const _SummaryRow(
+      {required this.icon, required this.label, required this.value});
 
   final IconData icon;
   final String label;
@@ -303,10 +302,13 @@ class _SummaryRow extends StatelessWidget {
           const SizedBox(width: 10),
           SizedBox(
             width: 90,
-            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+            child: Text(label,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
           ),
           Expanded(
-            child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+            child: Text(value,
+                style:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
           ),
         ],
       ),

@@ -1,5 +1,3 @@
-"""FastAPI dependencies: request id, auth, database handles."""
-
 from __future__ import annotations
 
 import uuid
@@ -49,9 +47,9 @@ async def operator_key(
     x_api_key: Annotated[str | None, Header()] = None,
     settings: Settings = Depends(get_settings_dep),
 ) -> str:
-    """Operator/admin endpoints. Enrollment must never be callable by a peserta
-    with only their own Firebase token - that would let anyone enrol a face
-    against any BPJS number."""
+    """Operator/admin endpoints. Enrollment must never be callable by a peserta with only their own Firebase
+    token - that would let anyone enrol a face against any BPJS number.
+    """
     if not x_api_key or not crypto.constant_time_equals(x_api_key, settings.operator_api_key):
         raise ApiError("INVALID_API_KEY", 403, message="API key operator tidak valid.")
     return x_api_key
@@ -61,11 +59,7 @@ async def facility_key(
     x_api_key: Annotated[str | None, Header()] = None,
     settings: Settings = Depends(get_settings_dep),
 ) -> str:
-    """Identifies the health facility starting a session.
-
-    In dev, when no facility keys are configured, the check is skipped so the
-    flow can be exercised from Swagger. Configured keys are always enforced.
-    """
+    """Identifies the health facility starting a session."""
     keys = settings.facility_key_map
     if not keys and settings.identicare_env == "dev":
         return "dev"
@@ -80,17 +74,9 @@ async def facility_key(
 async def current_staff(
     x_staff_token: Annotated[str | None, Header()] = None,
 ) -> StaffPrincipal:
-    """Authenticated staff member.
-
-    Deliberately a separate header from Authorization: a request can legitimately
-    carry BOTH a participant's Firebase token and a staff token at the same time
-    (the patient is present at the desk while the officer acts), and collapsing
-    them into one header would make that ambiguous.
-    """
+    """Authenticated staff member."""
     if not x_staff_token:
-        raise ApiError(
-            "UNAUTHENTICATED", 401, message="Header X-Staff-Token wajib diisi untuk aksi petugas."
-        )
+        raise ApiError("UNAUTHENTICATED", 401, message="Header X-Staff-Token wajib diisi untuk aksi petugas.")
     return staff_auth.verify_token(database.get_kek(), x_staff_token)
 
 

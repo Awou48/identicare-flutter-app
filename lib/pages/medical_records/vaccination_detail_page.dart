@@ -30,7 +30,11 @@ class VaccinationDetailPage extends StatelessWidget {
     );
   }
 
-  Widget _buildVaccineCard(BuildContext context, {required String vaccineName, required String date, required String location, required String batchNo}) {
+  Widget _buildVaccineCard(BuildContext context,
+      {required String vaccineName,
+      required String date,
+      required String location,
+      required String batchNo}) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -41,9 +45,12 @@ class VaccinationDetailPage extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.vaccines_outlined, color: Theme.of(context).colorScheme.primary, size: 32),
+                Icon(Icons.vaccines_outlined,
+                    color: Theme.of(context).colorScheme.primary, size: 32),
                 const SizedBox(width: 12),
-                Text(vaccineName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                Text(vaccineName,
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold)),
               ],
             ),
             const Divider(height: 24),
@@ -63,7 +70,7 @@ class VaccinationDetailPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 120, // Memberi lebar tetap untuk judul
+            width: 120,
             child: Text(
               title,
               style: const TextStyle(color: Colors.grey),

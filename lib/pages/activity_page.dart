@@ -2,11 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:identicare_mobile/pages/history_page.dart';
 import 'package:identicare_mobile/pages/verification/verification_history_page.dart';
 
-/// Tab "Aktivitas": dua sumber data, dua tab.
-///
-/// Di sinilah keputusan database hibrida terlihat di UI. "Konsultasi" membaca
-/// `riwayat_konsultasi` dari Firestore (fitur lama, tetap bekerja), sedangkan
-/// "Verifikasi" membaca log verifikasi biometrik dari MongoDB lewat API Python.
 class ActivityPage extends StatelessWidget {
   const ActivityPage({super.key});
 

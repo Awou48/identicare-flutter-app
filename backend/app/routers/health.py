@@ -1,5 +1,3 @@
-"""Readiness. Reports what is actually loaded, not just 'ok'."""
-
 from __future__ import annotations
 
 from fastapi import APIRouter
@@ -24,7 +22,7 @@ async def health(settings: SettingsDep) -> dict:
         checks["enrolled_templates"] = await db.biometric_templates.count_documents(
             {"modality": "face", "status": "active"}
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         checks["mongo"] = f"error: {type(exc).__name__}"
 
     engine = face_engine.get_engine()

@@ -1,14 +1,3 @@
-"""Tier B: evaluating an Android key attestation chain at device enrolment.
-
-A phone is not available in CI, so the chain is built here the way the TEE
-builds it: a leaf certificate over the device key carrying a KeyDescription
-extension (OID 1.3.6.1.4.1.11129.2.1.17) whose ASN.1 matches the Android
-schema closely enough for the parser. What is tested is the server's
-judgement, which is the part that matters: the level a device claims only
-counts when the certificate is about the key we were handed and was minted
-for this device.
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -23,7 +12,6 @@ from app.security import attestation
 CHALLENGE = b"device-uid-0123456789abcdef"
 
 
-# --- minimal DER writer: enough to build a KeyDescription like the TEE does -- #
 def _len(n: int) -> bytes:
     if n < 0x80:
         return bytes([n])
@@ -54,7 +42,7 @@ def _ctx(tag_no: int, inner: bytes) -> bytes:
 def _authorization_list(*, no_auth_required: bool, user_auth_type: int | None) -> bytes:
     items = b""
     if no_auth_required:
-        items += _ctx(attestation.TAG_NO_AUTH_REQUIRED, bytes([0x05, 0x00]))  # NULL
+        items += _ctx(attestation.TAG_NO_AUTH_REQUIRED, bytes([0x05, 0x00]))
     if user_auth_type is not None:
         items += _ctx(attestation.TAG_USER_AUTH_TYPE, _int(0x02, user_auth_type))
     return _tlv(bytes([0x30]), items)
@@ -64,13 +52,13 @@ def _key_description(
     level: int, challenge: bytes, *, no_auth_required: bool = False, user_auth_type: int | None = 2
 ) -> bytes:
     body = (
-        _int(0x02, 200)  # attestationVersion
-        + _int(0x0A, level)  # attestationSecurityLevel
-        + _int(0x02, 200)  # keymasterVersion
-        + _int(0x0A, level)  # keymasterSecurityLevel
+        _int(0x02, 200)
+        + _int(0x0A, level)
+        + _int(0x02, 200)
+        + _int(0x0A, level)
         + _tlv(bytes([0x04]), challenge)
         + _tlv(bytes([0x04]), b"")
-        + _tlv(bytes([0x30]), b"")  # softwareEnforced: empty, like a real TEE key
+        + _tlv(bytes([0x30]), b"")
         + _authorization_list(no_auth_required=no_auth_required, user_auth_type=user_auth_type)
     )
     return _tlv(bytes([0x30]), body)
@@ -124,8 +112,8 @@ def test_tee_chain_over_the_right_key_and_challenge_is_hardware() -> None:
     )
     assert out["parsed"] and out["key_matches"] and out["challenge_ok"]
     assert out["security_level"] == "TEE"
-    assert out["user_auth_required"] is True  # read from the TEE-enforced list
-    assert out["chain_verified"] is False  # not validated to the Google root - never claim it
+    assert out["user_auth_required"] is True
+    assert out["chain_verified"] is False
 
 
 def test_strongbox_is_recognised() -> None:
@@ -137,8 +125,9 @@ def test_strongbox_is_recognised() -> None:
 
 
 def test_chain_for_a_different_key_earns_nothing() -> None:
-    """The attack: a genuine TEE chain from some other key, sent alongside a
-    software key the attacker controls. The level must not transfer."""
+    """The attack: a genuine TEE chain from some other key, sent alongside a software key the attacker
+    controls. The level must not transfer.
+    """
     real, attacker = ec.generate_private_key(ec.SECP256R1()), ec.generate_private_key(ec.SECP256R1())
     out = attestation.evaluate_attestation_chain(
         _chain(real, level=1, challenge=CHALLENGE),
@@ -175,9 +164,9 @@ def test_no_chain_is_software_not_an_error() -> None:
 
 
 def test_signature_made_by_the_attested_key_verifies() -> None:
-    """End to end on the crypto: the key the chain certifies signs the
-    canonical payload the way SHA256withECDSA on Android does (DER signature),
-    and the server verifies it against the enrolled SPKI."""
+    """End to end on the crypto: the key the chain certifies signs the canonical payload the way
+    SHA256withECDSA on Android does (DER signature), and the server verifies it against the enrolled SPKI.
+    """
     key = ec.generate_private_key(ec.SECP256R1())
     payload = attestation.canonical_payload(
         session_id="s", nonce="n", device_uid="d", no_bpjs="0001234567890", timestamp=1
@@ -188,10 +177,10 @@ def test_signature_made_by_the_attested_key_verifies() -> None:
 
 
 def test_user_auth_requirement_is_read_from_the_certificate() -> None:
-    """The app says it set setUserAuthenticationRequired(true). The server
-    does not take its word: the TEE-enforced AuthorizationList either carries
-    noAuthRequired (tag 503) or a userAuthType (tag 504) with the fingerprint
-    bit, and that is what decides."""
+    """The app says it set setUserAuthenticationRequired(true). The server does not take its word: the TEE-
+    enforced AuthorizationList either carries noAuthRequired (tag 503) or a userAuthType (tag 504) with the
+    fingerprint bit, and that is what decides.
+    """
     key = ec.generate_private_key(ec.SECP256R1())
     spki = _spki(key)
 

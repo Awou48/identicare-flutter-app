@@ -1,29 +1,3 @@
-"""Enrol a REAL person so the demo works with a real face.
-
-The seeded participants carry random vectors, not faces, so they can never match
-a photo. This script is the missing link between "the backend works" and "I can
-demo this with my own face".
-
-    # from a folder of photos
-    python scripts/enroll_me.py --images path/to/my_photos --nama "Marcel Iliantino"
-
-    # or straight from the webcam (press SPACE 3 times, Q to abort)
-    python scripts/enroll_me.py --webcam --nama "Marcel Iliantino"
-
-    # link it to the Firebase account you log into the app with
-    python scripts/enroll_me.py --webcam --nama "..." --firebase-uid <uid>
-
-    # afterwards, check the enrolment against a fresh photo
-    python scripts/enroll_me.py --verify path/to/another_photo.jpg
-
-Requires the API to be running:
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 --app-dir backend
-
-Three photos with slightly different angles and expressions work best. The server
-embeds all three, checks they agree with each other (so you cannot accidentally
-enrol two different people), and stores the encrypted mean.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -32,7 +6,6 @@ from pathlib import Path
 
 import httpx
 
-import _bootstrap_path  # noqa: F401  (side effect: sys.path)
 from app.config import get_settings
 
 DEFAULT_NIK = "3174050412010001"
@@ -127,7 +100,6 @@ def main() -> int:
     operator = {"X-Api-Key": operator_key}
     http = httpx.Client(timeout=120.0)
 
-    # ---------------------------------------------------------------- #
     try:
         health = http.get(f"{api}/health").json()
     except httpx.HTTPError as exc:
@@ -144,20 +116,16 @@ def main() -> int:
         )
     print(f"[+] API healthy, face models loaded (dim={health['checks']['embedding_dim']})")
 
-    # ---------------------------------------------------------------- #
     if args.verify:
         return verify(http, api, operator, args)
 
     if not args.images and not args.webcam:
         parser.error("give --images FOLDER, --webcam, or --verify PHOTO")
 
-    images = (
-        collect_from_webcam() if args.webcam else collect_from_folder(args.images)
-    )
+    images = collect_from_webcam() if args.webcam else collect_from_folder(args.images)
     if len(images) < 2:
         print("[!] Only one image. Two or three give a much more robust template.")
 
-    # ---------------------------------------------------------------- #
     print(f"\n[*] Upserting peserta {args.no_bpjs} ({args.nama})")
     response = http.post(
         f"{api}/enrollment/peserta",
@@ -184,7 +152,6 @@ def main() -> int:
         print("    participant's verification history until the account is linked.")
         print("    Sign up in the app with this BPJS number, or re-run with --firebase-uid.")
 
-    # ---------------------------------------------------------------- #
     print("\n[*] Enrolling face...")
     response = http.post(
         f"{api}/enrollment/face",
@@ -219,11 +186,7 @@ def main() -> int:
 
 
 def verify(http: httpx.Client, api: str, operator: dict, args) -> int:
-    """Score a fresh photo against the stored template, without a session.
-
-    Uses the 1:N sweep, so it reports whether the face matches ANY enrolled
-    participant - which also shows whether it collides with somebody else.
-    """
+    """Score a fresh photo against the stored template, without a session."""
     photo = args.verify
     if not photo.exists():
         raise SystemExit(f"[!] Not found: {photo}")

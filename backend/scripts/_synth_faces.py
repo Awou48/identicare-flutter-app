@@ -1,49 +1,12 @@
-"""Synthetic faces for driving the pipeline without real photographs.
-
-READ THIS BEFORE TRUSTING ANY NUMBER THESE PRODUCE.
-
-SCRFD does detect these drawings (det_score ~0.75), and ArcFace does return
-consistent 512-d embeddings for them, which is enough to exercise every stage of
-the API end to end: enrolment, session state machine, matching, fraud rules.
-
-But ArcFace was never trained on cartoons, so it collapses them into one tight
-region of the embedding space. Measured on three synthetic identities:
-
-    same "person"      0.951 - 0.975
-    different "person" 0.654 - 0.887      <-- still far above the 0.42 threshold
-
-Real photographs separate roughly 0.5-0.8 versus 0.0-0.2. So these fixtures:
-
-    CAN   verify that the plumbing works and that same > different
-    CANNOT validate FACE_MATCH_ACCEPT, FRR/FAR, or liveness robustness
-
-They also CANNOT simulate head yaw. Both moving the drawn nose and applying a
-perspective warp were tried; SCRFD's landmark regressor anchors to the drawing's
-symmetric structure and the measured yaw proxy shifts by only ~0.02, far under
-the 0.10 a real head turn produces. So `turn_left`/`turn_right` cannot be
-exercised with these fixtures - only `move_closer` (area growth, which warps
-faithfully) and the negative cases.
-
-The right response to that is NOT to lower YAW_SHIFT_REQUIRED until a cartoon
-passes - that would tune a security threshold to fit a bad fixture. The turn
-challenges need validating on a real device with a real camera.
-
-Threshold calibration needs real photographs of real people. Run
-`scripts/check_face_models.py --images DIR` against those before any demo.
-"""
-
 from __future__ import annotations
 
 import cv2
 import numpy as np
 
 PEOPLE: dict[str, dict] = {
-    "andi": dict(skin=(190, 200, 215), hair=(40, 40, 60), eye=(60, 45, 35),
-                 ew=24, gap=45, fw=110, fh=150),
-    "budi": dict(skin=(140, 158, 188), hair=(20, 20, 25), eye=(30, 25, 20),
-                 ew=19, gap=54, fw=125, fh=138),
-    "citra": dict(skin=(212, 216, 226), hair=(90, 110, 150), eye=(120, 90, 55),
-                  ew=28, gap=39, fw=98, fh=160),
+    "andi": dict(skin=(190, 200, 215), hair=(40, 40, 60), eye=(60, 45, 35), ew=24, gap=45, fw=110, fh=150),
+    "budi": dict(skin=(140, 158, 188), hair=(20, 20, 25), eye=(30, 25, 20), ew=19, gap=54, fw=125, fh=138),
+    "citra": dict(skin=(212, 216, 226), hair=(90, 110, 150), eye=(120, 90, 55), ew=28, gap=39, fw=98, fh=160),
 }
 
 WIDTH, HEIGHT = 480, 640
@@ -57,16 +20,11 @@ def render(
     scale: float = 1.0,
     jitter: bool = True,
 ) -> np.ndarray:
-    """Draw one frame.
-
-    nose_shift moves the nose horizontally relative to the eyes, which is what
-    the liveness yaw proxy measures - positive simulates turning left.
-    scale grows the face, simulating "move closer".
-    """
+    """Draw one frame."""
     p = PEOPLE[person]
     rng = np.random.default_rng(seed)
     w, h = WIDTH, HEIGHT
-    dx, dy = (rng.integers(-6, 7, 2) if jitter else (0, 0))
+    dx, dy = rng.integers(-6, 7, 2) if jitter else (0, 0)
 
     img = np.full((h, w, 3), (160, 165, 170), np.uint8)
     cx, cy = w // 2 + int(dx), h // 2 + int(dy)
@@ -81,27 +39,29 @@ def render(
         cv2.ellipse(img, (ex, ey), (ew, int(12 * scale)), 0, 0, 360, (255, 255, 255), -1)
         cv2.circle(img, (ex, ey), int(9 * scale), p["eye"], -1)
         cv2.circle(img, (ex, ey), int(4 * scale), (10, 10, 10), -1)
-        cv2.ellipse(img, (ex, ey - int(16 * scale)), (ew + 2, int(10 * scale)), 0, 180, 360,
-                    p["hair"], 3)
+        cv2.ellipse(img, (ex, ey - int(16 * scale)), (ew + 2, int(10 * scale)), 0, 180, 360, p["hair"], 3)
 
     nose_x = cx + nose_shift
-    cv2.ellipse(img, (nose_x, cy + int(15 * scale)), (int(16 * scale), int(30 * scale)),
-                0, 0, 360, tuple(int(c * 0.88) for c in p["skin"]), -1)
-    cv2.ellipse(img, (cx, cy + int(80 * scale)), (int(38 * scale), int(18 * scale)),
-                0, 0, 180, (120, 110, 140), -1)
+    cv2.ellipse(
+        img,
+        (nose_x, cy + int(15 * scale)),
+        (int(16 * scale), int(30 * scale)),
+        0,
+        0,
+        360,
+        tuple(int(c * 0.88) for c in p["skin"]),
+        -1,
+    )
+    cv2.ellipse(
+        img, (cx, cy + int(80 * scale)), (int(38 * scale), int(18 * scale)), 0, 0, 180, (120, 110, 140), -1
+    )
 
     img = cv2.GaussianBlur(img, (5, 5), 0)
     return cv2.add(img, rng.integers(0, 18, (h, w, 3), dtype=np.uint8))
 
 
 def _yaw_warp(img: np.ndarray, amount: float) -> np.ndarray:
-    """Perspective-warp the frame to simulate a head turn.
-
-    Moving the drawn nose alone does not work: SCRFD regresses the nose KEYPOINT
-    from overall face structure, so it barely follows a repositioned ellipse. A
-    perspective warp moves eyes, nose and mouth together, which is what a real
-    yaw does and what the landmark model actually responds to.
-    """
+    """Perspective-warp the frame to simulate a head turn."""
     if abs(amount) < 1e-6:
         return img
     h, w = img.shape[:2]
@@ -138,11 +98,7 @@ def burst(person: str, challenge: str | None = "turn_left", seed: int = 0) -> li
 
 
 def still(person: str, seed: int = 0) -> list[bytes]:
-    """Three IDENTICAL frames - simulates holding a printed photo to the camera.
-
-    Micro-motion is zero and the challenge is never satisfied, so this is what a
-    working liveness check must reject.
-    """
+    """Three IDENTICAL frames - simulates holding a printed photo to the camera."""
     img = render(person, seed=seed, jitter=False)
     ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 88])
     if not ok:

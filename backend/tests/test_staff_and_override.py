@@ -1,10 +1,3 @@
-"""The two controls added in v2: enrolment proofing and the staff override.
-
-These cover the logic that decides whether a poisoned enrolment can be created
-and whether a break-glass override can be self-approved. Both are pure units -
-no server, no MongoDB.
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -31,9 +24,6 @@ from app.services import enrollment_service, fraud_rules, session_service
 from app.utils.errors import ApiError
 
 
-# --------------------------------------------------------------------------- #
-# Passwords
-# --------------------------------------------------------------------------- #
 def test_password_roundtrip() -> None:
     stored = staff_auth.hash_password("correct horse battery")
     assert staff_auth.verify_password("correct horse battery", stored)
@@ -41,8 +31,7 @@ def test_password_roundtrip() -> None:
 
 
 def test_password_hash_is_salted() -> None:
-    """Same password, different hashes - so a stolen table does not reveal which
-    staff share a password."""
+    """Same password, different hashes - so a stolen table does not reveal which staff share a password."""
     a = staff_auth.hash_password("same-password")
     b = staff_auth.hash_password("same-password")
     assert a != b
@@ -61,16 +50,11 @@ def test_malformed_hash_denies_rather_than_raises() -> None:
         assert staff_auth.verify_password("anything", bad) is False
 
 
-# --------------------------------------------------------------------------- #
-# Tokens and roles
-# --------------------------------------------------------------------------- #
 KEK = b"k" * 32
 
 
 def test_token_roundtrip() -> None:
-    token = staff_auth.issue_token(
-        KEK, staff_id="abc123", nama="Sari", role=ROLE_SUPERVISOR, faskes_id="f1"
-    )
+    token = staff_auth.issue_token(KEK, staff_id="abc123", nama="Sari", role=ROLE_SUPERVISOR, faskes_id="f1")
     principal = staff_auth.verify_token(KEK, token)
     assert principal.staff_id == "abc123"
     assert principal.role == ROLE_SUPERVISOR
@@ -78,9 +62,7 @@ def test_token_roundtrip() -> None:
 
 
 def test_token_signed_with_a_different_kek_is_rejected() -> None:
-    token = staff_auth.issue_token(
-        KEK, staff_id="a", nama="n", role=ROLE_PETUGAS, faskes_id=None
-    )
+    token = staff_auth.issue_token(KEK, staff_id="a", nama="n", role=ROLE_PETUGAS, faskes_id=None)
     with pytest.raises(ApiError) as exc:
         staff_auth.verify_token(b"x" * 32, token)
     assert exc.value.code == "UNAUTHENTICATED"
@@ -92,9 +74,9 @@ def test_garbage_token_is_rejected() -> None:
 
 
 def test_role_grants_are_not_a_flat_hierarchy() -> None:
-    """An investigator reads fraud cases but must NOT approve a clinical
-    override; a petugas must not read the investigator console. A simple
-    ordering would quietly grant both."""
+    """An investigator reads fraud cases but must NOT approve a clinical override; a petugas must not read the
+    investigator console. A simple ordering would quietly grant both.
+    """
     investigator = StaffPrincipal("i", "I", ROLE_INVESTIGATOR, None)
     assert not investigator.can_act_as(ROLE_SUPERVISOR)
     assert not investigator.can_act_as(ROLE_PETUGAS)
@@ -120,9 +102,6 @@ def test_require_raises_forbidden() -> None:
     assert exc.value.status_code == 403
 
 
-# --------------------------------------------------------------------------- #
-# Assurance ceiling and cooling-off
-# --------------------------------------------------------------------------- #
 def _template(assurance: str | None, age_hours: float = 100.0) -> dict:
     return {
         "assurance": assurance,
@@ -154,14 +133,14 @@ def test_dukcapil_verified_has_no_ceiling() -> None:
 
 
 def test_missing_assurance_is_treated_as_weakest() -> None:
-    """Templates enrolled before this pipeline existed carry no assurance. They
-    must NOT be silently granted full trust."""
-    assert enrollment_service.ceiling_for(None) == enrollment_service.CLAIM_CEILING[
-        enrollment_service.ASSURANCE_SELF
-    ]
-    ok, code, _ = enrollment_service.check_claim_allowed(
-        _template(None), 5_000_000, cooling_hours=0
+    """Templates enrolled before this pipeline existed carry no assurance. They must NOT be silently granted
+    full trust.
+    """
+    assert (
+        enrollment_service.ceiling_for(None)
+        == enrollment_service.CLAIM_CEILING[enrollment_service.ASSURANCE_SELF]
     )
+    ok, code, _ = enrollment_service.check_claim_allowed(_template(None), 5_000_000, cooling_hours=0)
     assert not ok and code == "ASSURANCE_CEILING_EXCEEDED"
 
 
@@ -197,8 +176,9 @@ def test_cooling_off_still_allows_small_claims() -> None:
 
 
 def test_naive_datetime_is_handled() -> None:
-    """Mongo can return tz-naive datetimes; comparing them to an aware now()
-    would raise TypeError and 500 the claim."""
+    """Mongo can return tz-naive datetimes; comparing them to an aware now() would raise TypeError and 500 the
+    claim.
+    """
     ok, _, _ = enrollment_service.check_claim_allowed(
         {"assurance": enrollment_service.ASSURANCE_DUKCAPIL, "created_at": datetime(2020, 1, 1)},
         5_000_000,
@@ -207,37 +187,28 @@ def test_naive_datetime_is_handled() -> None:
     assert ok
 
 
-# --------------------------------------------------------------------------- #
-# Dedup outcome
-# --------------------------------------------------------------------------- #
 def test_dedup_outcome_passes_only_with_no_hits() -> None:
     clean = enrollment_service.DedupOutcome(passed=True, checked=120, hits=[], top_score=None)
     assert clean.passed
     doc = clean.to_doc()
     assert doc["passed"] is True
-    # An empty list is a PASS that actually ran; a missing field would mean the
-    # gate never executed, which is a very different thing.
     assert doc["candidates_checked"] == 120
     assert doc["hits"] == []
 
 
 def test_dedup_outcome_records_the_top_hit() -> None:
     hit = {"peserta_id": "other-person", "score": 0.71}
-    dirty = enrollment_service.DedupOutcome(
-        passed=False, checked=120, hits=[hit], top_score=0.71
-    )
+    dirty = enrollment_service.DedupOutcome(passed=False, checked=120, hits=[hit], top_score=0.71)
     doc = dirty.to_doc()
     assert doc["passed"] is False
     assert doc["top_score"] == 0.71
     assert doc["hits"][0]["peserta_id"] == "other-person"
 
 
-# --------------------------------------------------------------------------- #
-# Override state machine
-# --------------------------------------------------------------------------- #
 def test_rejected_is_no_longer_terminal() -> None:
-    """This is the whole point: a failed face must be able to escalate rather
-    than dead-end, or the system denies care to bruised and burned patients."""
+    """This is the whole point: a failed face must be able to escalate rather than dead-end, or the system
+    denies care to bruised and burned patients.
+    """
     assert "rejected" not in session_service.TERMINAL
     assert "rejected" in session_service.OVERRIDE_ELIGIBLE
 
@@ -254,8 +225,7 @@ def test_override_states_declared_in_validator_enum() -> None:
 
 
 def test_override_pending_accepts_no_normal_step() -> None:
-    """The override path has its own endpoints; the step sequence must not
-    advance from override_pending."""
+    """The override path has its own endpoints; the step sequence must not advance from override_pending."""
     session = {"_id": "s", "status": "override_pending", "steps": {}}
     for step in ("face", "fingerprint", "review", "commit"):
         with pytest.raises(ApiError) as exc:
@@ -264,16 +234,18 @@ def test_override_pending_accepts_no_normal_step() -> None:
 
 
 def test_approved_with_override_is_a_distinct_decision() -> None:
-    """It must never collapse into plain APPROVED, or a claim that skipped
-    biometric proof becomes indistinguishable from one that passed it."""
+    """It must never collapse into plain APPROVED, or a claim that skipped biometric proof becomes
+    indistinguishable from one that passed it.
+    """
     assert "APPROVED_WITH_OVERRIDE" in DECISIONS
     assert "APPROVED" in DECISIONS
     assert "APPROVED_WITH_OVERRIDE" != "APPROVED"
 
 
 def test_override_reasons_are_a_closed_enum() -> None:
-    """Free text alone is unanalysable, and spotting patterns across staff is
-    the entire reason for recording a reason."""
+    """Free text alone is unanalysable, and spotting patterns across staff is the entire reason for recording
+    a reason.
+    """
     assert "LAINNYA" in OVERRIDE_REASONS
     assert "CEDERA_WAJAH" in OVERRIDE_REASONS
     assert "LUKA_BAKAR_JARI" in OVERRIDE_REASONS
@@ -290,13 +262,14 @@ def test_enrollment_and_assurance_enums_are_wired() -> None:
     assert set(ASSURANCE_LEVELS) == set(enrollment_service.CLAIM_CEILING)
 
 
-# --------------------------------------------------------------------------- #
-# Override fraud signals
-# --------------------------------------------------------------------------- #
 def test_manual_override_raises_a_signal() -> None:
     session = {
-        "override": {"status": "approved", "reason_code": "CEDERA_WAJAH",
-                     "requested_by": "p1", "approved_by": "s1"},
+        "override": {
+            "status": "approved",
+            "reason_code": "CEDERA_WAJAH",
+            "requested_by": "p1",
+            "approved_by": "s1",
+        },
         "context": {"faskes_id": "f1"},
     }
     signals = fraud_rules._manual_override(session)
@@ -312,26 +285,35 @@ def test_no_signal_without_an_approved_override() -> None:
 
 
 def test_override_alone_does_not_reject_the_claim() -> None:
-    """An override is not an accusation. Weight 25 lands in REVIEW, not
-    REJECTED - most overrides are legitimate clinical reality."""
+    """An override is not an accusation. Weight 25 lands in REVIEW, not REJECTED - most overrides are
+    legitimate clinical reality.
+    """
     signals = fraud_rules._manual_override(
         {
-            "override": {"status": "approved", "reason_code": "LUKA_BAKAR_JARI",
-                         "requested_by": "p", "approved_by": "s"},
+            "override": {
+                "status": "approved",
+                "reason_code": "LUKA_BAKAR_JARI",
+                "requested_by": "p",
+                "approved_by": "s",
+            },
             "context": {},
         }
     )
     score = sum(s.weight for s in signals)
     band, decision = fraud_rules.band_for(score, signals)
-    assert decision == "APPROVED"  # 25 on its own is still LOW
+    assert decision == "APPROVED"
     assert band == "LOW"
 
 
 def test_override_plus_arrears_escalates_to_review() -> None:
     signals = fraud_rules._manual_override(
         {
-            "override": {"status": "approved", "reason_code": "LAINNYA",
-                         "requested_by": "p", "approved_by": "s"},
+            "override": {
+                "status": "approved",
+                "reason_code": "LAINNYA",
+                "requested_by": "p",
+                "approved_by": "s",
+            },
             "context": {},
         }
     ) + fraud_rules._menunggak({"tunggakan_bulan": 2})
@@ -346,8 +328,9 @@ def test_override_frequency_constants_are_sane() -> None:
 
 
 def test_a_critical_frequency_signal_rejects_even_a_low_score() -> None:
-    """The control that catches insider fraud: one override is a bruised face,
-    twenty in a week is the override being used as the mechanism."""
+    """The control that catches insider fraud: one override is a bruised face, twenty in a week is the
+    override being used as the mechanism.
+    """
     frequency = fraud_rules.Signal(
         "STAFF_OVERRIDE_FREQUENCY", "critical", 35, "terlalu sering", {"override_count": 22}
     )

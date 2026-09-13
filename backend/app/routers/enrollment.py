@@ -1,11 +1,3 @@
-"""Enrollment: participants, faces, devices. Operator-authenticated.
-
-These endpoints deliberately require an operator key rather than the peserta's
-own Firebase token. If a participant could call /enrollment/face themselves, they
-could enrol their own face against somebody else's BPJS number - which is exactly
-the fraud this system exists to prevent.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -29,8 +21,6 @@ from app.utils.errors import ApiError
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/enrollment", tags=["enrollment"])
 
-# Two enrolment frames of the same person should agree strongly. Below this the
-# operator most likely captured two different people, or one badly blurred shot.
 ENROLL_CONSISTENCY_MIN = 0.60
 
 
@@ -77,8 +67,6 @@ async def upsert_peserta(
         peserta_id = result.inserted_id
         created = True
 
-    # NIK is encrypted under an AAD bound to this document, so the ciphertext
-    # cannot be transplanted onto another participant.
     kek = database.get_kek()
     aad = crypto.build_aad(peserta_id, "nik", 1)
     await db.peserta.update_one(
@@ -132,28 +120,7 @@ async def enroll_self(
     user: CurrentUserDep,
     frames: list[UploadFile] = File(...),
 ) -> dict:
-    """Self-service enrolment by the participant, from their own phone.
-
-    Why this exists: the claim flow refuses to start with BIOMETRIC_NOT_ENROLLED,
-    and until now the app had no way to resolve that - the headline feature
-    simply dead-ended for anyone an operator had not enrolled first.
-
-    Three deliberate differences from the operator path.
-
-    1. Authenticated by the participant's own Firebase token, NOT the operator
-       key. Shipping the operator key inside the patient app would hand every
-       user the ability to enrol any face against any BPJS number, which is the
-       exact hole the dedup gate exists to close.
-    2. The participant is resolved from firebase_uid, never from a body field.
-       Accepting a no_bpjs here would let anyone enrol their face against
-       someone else's number just by typing it.
-    3. replace is not offered. Re-enrolling over an existing template is how you
-       would quietly take over an account that already verifies, so a genuine
-       re-enrolment has to go through an operator with dual control.
-
-    The result is recorded as SELF_ASSERTED, which carries a claim ceiling - a
-    weaker assertion than an officer checking a KTP, and the record says so.
-    """
+    """Self-service enrolment by the participant, from their own phone."""
     peserta = await db.peserta.find_one({"firebase_uid": user.uid})
     if not peserta:
         raise ApiError(
@@ -189,11 +156,7 @@ async def _run_enrollment(
     actor: str,
     request_id: str,
 ) -> dict:
-    """Embed, check consistency, run the dedup gate, then activate the template.
-
-    Shared by both enrolment paths on purpose: the security-critical steps - the
-    1:N gate above all - must be impossible to reach by a route that skips them.
-    """
+    """Embed, check consistency, run the dedup gate, then activate the template."""
     engine = face_engine.get_engine()
     if engine is None:
         raise ApiError("MODEL_UNAVAILABLE", 503, details={"reason": face_engine.load_error()})
@@ -201,8 +164,6 @@ async def _run_enrollment(
     active = await db.biometric_templates.find_one(
         {"peserta_id": peserta["_id"], "modality": "face", "status": "active"}
     )
-    # A seeded placeholder is not an enrolment; enrolling over it is the normal
-    # first enrolment, not a replacement, so it needs no operator privilege.
     if active and not replace and not matcher.is_placeholder(active):
         raise ApiError("ALREADY_ENROLLED", 409, details={"template_id": str(active["_id"])})
 
@@ -232,9 +193,6 @@ async def _run_enrollment(
 
     mean = enrollment_service.normalized_mean(embeddings)
 
-    # ----------------------------------------------------------------- #
-    # THE GATE. Sweep before activating anything.
-    # ----------------------------------------------------------------- #
     rot = database.get_rotation()
     request = await enrollment_service.create_request(
         db,
@@ -338,7 +296,6 @@ async def _run_enrollment(
         purpose="pendaftaran_biometrik",
     )
 
-    # The plaintext mean never leaves this function.
     crypto.wipe(mean)
 
     return {
@@ -390,15 +347,7 @@ async def probe_face(
     _: OperatorDep,
     frames: list[UploadFile] = File(...),
 ) -> dict:
-    """Score a photo against every enrolled template. Operator diagnostics only.
-
-    This is the tool for answering "did my enrolment actually work?" without
-    running a whole verification session. It also surfaces collisions: if one
-    face matches two different participants, that is the FACE_COLLISION fraud
-    case, and it is far better to discover it here than mid-demo.
-
-    Runs on the rotated search vectors, so nothing is decrypted.
-    """
+    """Score a photo against every enrolled template. Operator diagnostics only."""
     engine = face_engine.get_engine()
     if engine is None:
         raise ApiError("MODEL_UNAVAILABLE", 503, details={"reason": face_engine.load_error()})
@@ -413,8 +362,6 @@ async def probe_face(
     probe = rotation.l2_normalize(np.mean(np.stack(embeddings), axis=0))
     rot = database.get_rotation()
 
-    # threshold 0.0 so the caller sees the full ranking, including near misses -
-    # a score of 0.38 against yourself is much more useful to know than silence.
     hits = await matcher.sweep_collisions(db, rot, probe, threshold=0.0)
     crypto.wipe(probe)
 
@@ -451,8 +398,9 @@ async def probe_face(
 
 @router.delete("/face/{peserta_id}", response_model=OkResponse)
 async def revoke_face(peserta_id: str, db: DbDep, _: OperatorDep) -> OkResponse:
-    """Right to erasure. Zeroes both the ciphertext and the search vector so the
-    biometric is genuinely gone, not just flagged."""
+    """Right to erasure. Zeroes both the ciphertext and the search vector so the biometric is genuinely gone,
+    not just flagged.
+    """
     try:
         oid = ObjectId(peserta_id)
     except Exception as exc:
@@ -486,16 +434,7 @@ async def enroll_device(
     settings: SettingsDep,
     user: CurrentUserDep,
 ) -> dict:
-    """Register a device public key (Tier B) or shared secret hash (Tier A).
-
-    Tier A stores a 32-byte secret so the server can verify an HMAC. That secret
-    IS extractable in principle, which is exactly why sessions verified this way
-    are recorded as security_level SOFTWARE and raise a fraud signal.
-
-    Requires a signed-in user, and the record is stamped with THAT uid, not one
-    from the body: an unauthenticated upsert would let anyone who learned a
-    device_uid replace its secret with their own and then sign as that device.
-    """
+    """Register a device public key (Tier B) or shared secret hash (Tier A)."""
     device_uid = payload.get("device_uid")
     if not device_uid or len(device_uid) < 16:
         raise ApiError("VALIDATION_ERROR", 422, details={"field": "device_uid"})
@@ -510,8 +449,6 @@ async def enroll_device(
         "last_seen": now,
         "blocked": False,
     }
-    # Only write optional fields the client actually sent; storing explicit nulls
-    # adds nothing and forces every reader to handle a third state.
     for field in ("os_version", "model", "app_version"):
         if payload.get(field):
             doc[field] = str(payload[field])
@@ -521,8 +458,6 @@ async def enroll_device(
         if not pub:
             raise ApiError("VALIDATION_ERROR", 422, details={"field": "public_key_der_b64"})
         public_key_der = base64.b64decode(pub)
-        # Refuse anything that is not an EC P-256 SubjectPublicKeyInfo now,
-        # rather than at the first signature check.
         probe = attestation.verify_ec_p256(payload="x", signature=b"", public_key_der=public_key_der)
         if probe.error_code == "KEY_MISMATCH":
             raise ApiError(
@@ -533,9 +468,6 @@ async def enroll_device(
         evaluated = attestation.evaluate_attestation_chain(
             chain, public_key_der=public_key_der, expected_challenge=device_uid.encode("utf-8")
         )
-        # user_auth_required comes from the TEE-enforced authorization list in
-        # the certificate, not from the app. A key the hardware will sign with
-        # WITHOUT a fingerprint is not a second factor, whatever its level.
         evaluated["client_security_level"] = payload.get("client_security_level")
         if evaluated["user_auth_required"] is False:
             evaluated["security_level"] = "SOFTWARE"
@@ -543,10 +475,6 @@ async def enroll_device(
 
         doc["public_key_der"] = public_key_der
         doc["key_alias"] = payload.get("key_alias", "identicare_bpjs_v1")
-        # "hardware" only when the certificate chain says so about THIS key.
-        # A keystore key without a usable chain is still stronger than an HMAC
-        # secret (it cannot be exported), but the server has no evidence of
-        # that, so it does not get the label.
         doc["trust_level"] = "hardware" if evaluated["security_level"] in ("TEE", "STRONGBOX") else "software"
         doc["attestation"] = evaluated
         log.info(

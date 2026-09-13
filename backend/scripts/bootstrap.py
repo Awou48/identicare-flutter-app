@@ -1,12 +1,3 @@
-"""Create every collection, validator and index. Idempotent.
-
-    python scripts/bootstrap.py
-    python scripts/bootstrap.py --drop     # dev only: wipe the database first
-
-Running it twice must be a no-op. That is the acceptance test for Step 2, because
-a bootstrap that is not idempotent turns every deploy into a manual migration.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -15,7 +6,6 @@ import sys
 from pymongo import MongoClient
 from pymongo.errors import CollectionInvalid, OperationFailure, ServerSelectionTimeoutError
 
-import _bootstrap_path  # noqa: F401  (side effect: sys.path)
 from app.config import get_settings
 from app.db_schema import COLLECTIONS, INDEXES, VALIDATORS
 
@@ -28,9 +18,8 @@ def ensure_collection(db, name: str) -> str:
         db.create_collection(name)
         created = True
     except CollectionInvalid:
-        pass  # already exists
+        pass
 
-    # collMod applies to both paths, so a schema edit propagates on re-run.
     db.command(
         {
             "collMod": name,
@@ -53,8 +42,6 @@ def ensure_indexes(db, name: str) -> tuple[int, list[str]]:
         db[name].create_indexes(models)
         return len(models), problems
     except OperationFailure:
-        # One index conflicts with an existing definition. Fall back to one at a
-        # time so a single stale index does not block the other nine.
         made = 0
         for model in models:
             try:
@@ -105,9 +92,7 @@ def check_models(settings) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Bootstrap the IdentiCare MongoDB.")
-    parser.add_argument(
-        "--drop", action="store_true", help="Drop the database first. Dev only."
-    )
+    parser.add_argument("--drop", action="store_true", help="Drop the database first. Dev only.")
     args = parser.parse_args()
 
     settings = get_settings()

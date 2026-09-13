@@ -7,12 +7,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-/// Identitas perangkat yang stabil, dipakai untuk mendeteksi satu ponsel yang
-/// memverifikasi banyak peserta (sinyal fraud SHARED_DEVICE).
-///
-/// device_uid = sha256(ANDROID_ID + salt instalasi). Salt-nya acak per instalasi
-/// dan disimpan di secure storage, sehingga ID-nya tidak dapat dikorelasikan
-/// dengan aplikasi lain di ponsel yang sama.
 class DeviceIdentityService {
   DeviceIdentityService({FlutterSecureStorage? storage})
       : _storage = storage ?? const FlutterSecureStorage();
@@ -35,12 +29,6 @@ class DeviceIdentityService {
     return _cachedUid!;
   }
 
-  /// Rahasia bersama 32 byte untuk attestation Tier A (HMAC).
-  ///
-  /// Ini BUKAN pengikatan perangkat keras. Kuncinya dapat diekstraksi oleh
-  /// penyerang yang menguasai perangkat, dan itulah sebabnya server mencatatnya
-  /// sebagai security_level SOFTWARE dan menaikkan sinyal SOFTWARE_KEY_ONLY.
-  /// Tier B (Android Keystore) menggantikannya tanpa mengubah kontrak API.
   Future<List<int>> deviceSecret() async {
     final hex = await _readOrCreate(_secretKey, () => _randomHex(32));
     return _hexToBytes(hex);
@@ -92,7 +80,7 @@ class DeviceIdentityService {
     } catch (e) {
       debugPrint('platform id gagal: $e');
     }
-    // Fallback: salt saja sudah cukup untuk ID yang stabil per instalasi.
+
     return 'unknown-platform';
   }
 
@@ -104,9 +92,6 @@ class DeviceIdentityService {
       await _storage.write(key: key, value: created);
       return created;
     } catch (e) {
-      // Secure storage dapat gagal (mis. keystore rusak setelah restore backup).
-      // Jangan sampai menggagalkan alur; nilai sementara tetap konsisten selama
-      // proses berjalan, dan server akan memperlakukannya sebagai perangkat baru.
       debugPrint('secure storage gagal untuk $key: $e');
       return generate();
     }
@@ -114,7 +99,8 @@ class DeviceIdentityService {
 
   static String _randomHex(int bytes) {
     final rng = Random.secure();
-    return List.generate(bytes, (_) => rng.nextInt(256).toRadixString(16).padLeft(2, '0'))
+    return List.generate(
+            bytes, (_) => rng.nextInt(256).toRadixString(16).padLeft(2, '0'))
         .join();
   }
 

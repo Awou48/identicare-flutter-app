@@ -12,9 +12,11 @@ class PrescriptionDetailPage extends StatelessWidget {
         children: [
           _buildInfoSection(context),
           const SizedBox(height: 24),
-          _buildDrugCard(context, 'Amoxicillin 500mg', '3 x sehari, sesudah makan', 'Habiskan'),
+          _buildDrugCard(context, 'Amoxicillin 500mg',
+              '3 x sehari, sesudah makan', 'Habiskan'),
           const SizedBox(height: 12),
-          _buildDrugCard(context, 'Paracetamol 500mg', '3 x sehari, jika perlu', 'Jika demam/nyeri'),
+          _buildDrugCard(context, 'Paracetamol 500mg', '3 x sehari, jika perlu',
+              'Jika demam/nyeri'),
         ],
       ),
     );
@@ -23,14 +25,15 @@ class PrescriptionDetailPage extends StatelessWidget {
   Widget _buildInfoSection(BuildContext context) {
     return Card(
       elevation: 0,
-      color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Informasi Resep', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('Informasi Resep',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const Divider(height: 24),
             _buildInfoRow('Dokter', 'Dr. Budi Santoso'),
             _buildInfoRow('Tanggal', '28 Juni 2025'),
@@ -54,7 +57,8 @@ class PrescriptionDetailPage extends StatelessWidget {
     );
   }
 
-  Widget _buildDrugCard(BuildContext context, String name, String dosage, String note) {
+  Widget _buildDrugCard(
+      BuildContext context, String name, String dosage, String note) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -63,7 +67,9 @@ class PrescriptionDetailPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(name,
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Row(children: [
               const Icon(Icons.schedule, size: 18, color: Colors.grey),

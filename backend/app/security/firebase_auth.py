@@ -1,33 +1,3 @@
-"""Verify the Firebase ID tokens the Flutter app already produces.
-
-The hybrid-database decision means Firebase Auth stays the identity provider and
-MongoDB holds everything else. This module is the seam: it turns an ID token into
-a firebase_uid, which `peserta.firebase_uid` links to a BPJS participant.
-
-THREE VERIFICATION PATHS, tried in this order.
-
-1. Firebase Admin SDK, when a service-account JSON is present. Most
-   authoritative and the only one that can also check whether a user has been
-   disabled or their tokens revoked.
-
-2. Google public keys - no credentials of any kind required. A Firebase ID token
-   is an ordinary RS256 JWT signed by Google, so verifying it needs only the
-   PUBLIC certificates at the well-known endpoint below plus the project id. The
-   service account is only needed for PRIVILEGED operations (minting custom
-   tokens, editing users) - never for checking a token somebody handed you.
-
-   This distinction matters practically: without it the server rejected every
-   real request from the app with "Verifikasi Firebase tidak tersedia di
-   server", and the only apparent fix was to download a private key and put it
-   on disk. That is a credential the deployment does not need and should not
-   hold.
-
-3. Dev bypass: "Bearer dev:<uid>", only when IDENTICARE_ENV=dev AND neither of
-   the above is configured. Refused outright otherwise, and logged loudly - an
-   auth bypass that can silently follow you into production is far worse than
-   the inconvenience it saves.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -45,20 +15,14 @@ from app.utils.errors import ApiError
 
 log = logging.getLogger(__name__)
 
-# Google's public certificates for Firebase ID tokens. Public data; no auth.
-GOOGLE_CERTS_URL = (
-    "https://www.googleapis.com/robot/v1/metadata/x509/"
-    "securetoken@system.gserviceaccount.com"
-)
+GOOGLE_CERTS_URL = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
 
-# Tolerance for clock drift between this machine and Google's issuer.
 LEEWAY_SECONDS = 60
 
 _initialised = False
 _admin_available = False
 _public_key_available = False
 
-# kid -> public key, with the expiry Google's Cache-Control gives us.
 _cert_cache: dict[str, object] = {}
 _cert_expiry: float = 0.0
 _cert_lock = threading.Lock()
@@ -70,8 +34,6 @@ class CurrentUser:
     email: str | None = None
     dev_mode: bool = False
 
-    # How this token was checked. Surfaced by /health so it is obvious which
-    # path is live rather than having to infer it from behaviour.
     method: str = "unknown"
 
 
@@ -136,15 +98,8 @@ def status() -> str:
     return "dev-bypass"
 
 
-# --------------------------------------------------------------------------- #
-# Public-key path
-# --------------------------------------------------------------------------- #
 def _fetch_certs() -> dict[str, object]:
-    """Google's signing certificates, cached until Cache-Control says otherwise.
-
-    Refetching on every request would add a round trip to Google to each API
-    call and would rate-limit under load; the keys rotate roughly daily.
-    """
+    """Google's signing certificates, cached until Cache-Control says otherwise."""
     global _cert_expiry
 
     with _cert_lock:
@@ -155,8 +110,6 @@ def _fetch_certs() -> dict[str, object]:
             response = httpx.get(GOOGLE_CERTS_URL, timeout=10.0)
             response.raise_for_status()
         except httpx.HTTPError as exc:
-            # Keep serving from a stale cache rather than locking every user out
-            # because Google was briefly unreachable.
             if _cert_cache:
                 log.warning("Could not refresh Google certs (%s); using cached keys", exc)
                 return _cert_cache
@@ -170,7 +123,7 @@ def _fetch_certs() -> dict[str, object]:
         for kid, pem in response.json().items():
             try:
                 certs[kid] = load_pem_x509_certificate(pem.encode()).public_key()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.warning("Skipping unparseable certificate %s", kid)
 
         max_age = 3600
@@ -203,8 +156,6 @@ def _verify_with_public_keys(token: str, project_id: str) -> CurrentUser:
     certs = _fetch_certs()
     key = certs.get(kid)
     if key is None:
-        # Google rotated keys since our last fetch: force one refresh before
-        # rejecting, otherwise every user fails for up to an hour after rotation.
         global _cert_expiry
         _cert_expiry = 0.0
         key = _fetch_certs().get(kid)
@@ -238,8 +189,6 @@ def _verify_with_public_keys(token: str, project_id: str) -> CurrentUser:
     if not uid:
         raise ApiError("UNAUTHENTICATED", 401, message="Token tidak memuat identitas pengguna.")
 
-    # auth_time is when the user actually authenticated. A token claiming a
-    # future authentication is malformed.
     auth_time = claims.get("auth_time")
     if auth_time and auth_time > time.time() + LEEWAY_SECONDS:
         raise ApiError("UNAUTHENTICATED", 401, message="Token Firebase tidak valid.")
@@ -247,7 +196,6 @@ def _verify_with_public_keys(token: str, project_id: str) -> CurrentUser:
     return CurrentUser(uid=uid, email=claims.get("email"), method="google-public-keys")
 
 
-# --------------------------------------------------------------------------- #
 def verify(token: str, settings: Settings) -> CurrentUser:
     if not token:
         raise ApiError("UNAUTHENTICATED", 401)
@@ -261,9 +209,7 @@ def verify(token: str, settings: Settings) -> CurrentUser:
             raise ApiError(
                 "UNAUTHENTICATED", 401, message="Token Firebase tidak valid atau kedaluwarsa."
             ) from exc
-        return CurrentUser(
-            uid=decoded["uid"], email=decoded.get("email"), method="admin-sdk"
-        )
+        return CurrentUser(uid=decoded["uid"], email=decoded.get("email"), method="admin-sdk")
 
     if _public_key_available:
         return _verify_with_public_keys(token, settings.firebase_project_id)

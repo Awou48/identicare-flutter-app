@@ -1,11 +1,3 @@
-"""Step 2 - Scan Sidik Jari.
-
-The device's real fingerprint sensor gates access to a signing key; the server
-verifies a signature over a server-issued nonce. What crosses the network is a
-signature, never a boolean and never a fingerprint image - the biometric itself
-never leaves the phone's secure hardware.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -27,8 +19,6 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/verification/sessions", tags=["verification"])
 
 MAX_FINGERPRINT_ATTEMPTS = 5
-# Rejects a signature whose timestamp is implausible, which bounds how long a
-# captured payload stays useful even before the nonce is consumed.
 MAX_CLOCK_SKEW_SECONDS = 300
 
 
@@ -65,9 +55,6 @@ async def submit_fingerprint(
             "VALIDATION_ERROR", 422, details={"required": ["device_uid", "nonce", "signature_b64"]}
         )
 
-    # Bind the signature to this device, this session, this participant and this
-    # nonce. Any one of those missing lets a captured signature be replayed
-    # somewhere it does not belong.
     canonical = attestation.canonical_payload(
         session_id=str(session["_id"]),
         nonce=supplied_nonce,
@@ -79,7 +66,11 @@ async def submit_fingerprint(
     skew = abs(int(datetime.now(UTC).timestamp()) - timestamp)
     if timestamp and skew > MAX_CLOCK_SKEW_SECONDS:
         return await _fail(
-            db, session, "NONCE_EXPIRED", started, request_id,
+            db,
+            session,
+            "NONCE_EXPIRED",
+            started,
+            request_id,
             detail={"clock_skew_seconds": skew},
         )
 
@@ -91,11 +82,9 @@ async def submit_fingerprint(
 
     try:
         signature = base64.b64decode(signature_b64)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise ApiError("VALIDATION_ERROR", 422, details={"field": "signature_b64"}) from exc
 
-    # Consume the nonce BEFORE verifying. If verification ran first, an attacker
-    # could probe signatures repeatedly against a still-valid nonce.
     nonce_error = await nonce_service.consume(db, supplied_nonce, session_id=session["_id"])
     if nonce_error:
         return await _fail(db, session, nonce_error, started, request_id)
@@ -107,8 +96,6 @@ async def submit_fingerprint(
         outcome = attestation.verify_ec_p256(
             payload=canonical, signature=signature, public_key_der=bytes(public_key)
         )
-        # verify_ec_p256 proves the signature; what the KEY is worth was
-        # settled at enrolment from the attestation chain. Report that.
         if outcome.ok:
             level = (device.get("attestation") or {}).get("security_level", "SOFTWARE")
             outcome = attestation.VerificationOutcome(True, level)
@@ -120,18 +107,14 @@ async def submit_fingerprint(
         aad = crypto.build_aad(device_uid, "device_secret", 1)
         try:
             secret = crypto.decrypt_blob(kek, secret_env, aad)
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("device secret decrypt failed for %s", device_uid)
             return await _fail(db, session, "KEY_MISMATCH", started, request_id)
-        outcome = attestation.verify_hmac(
-            payload=canonical, signature=signature, shared_secret=secret
-        )
+        outcome = attestation.verify_hmac(payload=canonical, signature=signature, shared_secret=secret)
         del secret
 
     if not outcome.ok:
-        return await _fail(
-            db, session, outcome.error_code or "SIGNATURE_INVALID", started, request_id
-        )
+        return await _fail(db, session, outcome.error_code or "SIGNATURE_INVALID", started, request_id)
 
     latency_ms = int((time.perf_counter() - started) * 1000)
     await session_service.advance(
@@ -163,7 +146,6 @@ async def submit_fingerprint(
 
     message = "Verifikasi sidik jari berhasil."
     if outcome.security_level == "SOFTWARE":
-        # Say so out loud rather than presenting Tier A as equivalent to hardware.
         message += " Catatan: perangkat belum terikat perangkat keras (TEE)."
 
     return FingerprintStepResponse(

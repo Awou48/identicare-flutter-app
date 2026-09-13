@@ -1,39 +1,3 @@
-"""Secret orthogonal rotation for the 1:N biometric search index.
-
-The problem: AES-GCM ciphertext cannot be compared. AES is not homomorphic, and a
-real homomorphic scheme (CKKS/SEAL) is a multi-week build at roughly 100x the
-latency. But the fraud engine has to answer "does this face already exist under a
-different no_bpjs?" across every enrolled peserta, and decrypting the whole
-collection to do it would defeat the point of encrypting it.
-
-The resolution: store R.v alongside the ciphertext, where R is a fixed secret
-512x512 orthogonal matrix that never touches MongoDB.
-
-    (Rx).(Ry) = x^T R^T R y = x^T y        because R^T R = I
-    ||Rx||    = ||x||
-
-so cosine(Rx, Ry) == cosine(x, y) exactly, to float precision. The sweep runs on
-rotated vectors with ZERO decryptions and identical scores, and it ports unchanged
-to Atlas $vectorSearch later.
-
-Honest limits — state these, do not oversell them:
-
-  * This is distance-preserving PSEUDONYMISATION, not semantic security. An
-    adversary holding 512 or more (plaintext, rotated) pairs recovers R by least
-    squares. An adversary holding R plus a dump recovers every template.
-  * What it does buy: a stolen dump yields vectors in a basis no public ArcFace
-    tool, no published embedding-inversion model, and no other leaked biometric
-    database can consume. That is a real and useful property, and it is the same
-    trick production FRT systems use for their search tier.
-  * Therefore R lives only in keys/, never in the database or its backups;
-    plaintext embeddings and enrolment images are never persisted anywhere; R is
-    regenerated whenever the model version changes; and the AES-GCM blob, not the
-    search vector, remains the record of truth for the accept/reject decision.
-
-R is derived deterministically from the KEK via HKDF, so it is regenerable from a
-KEK backup — losing rotation_v1.npy alone is recoverable, losing the KEK is not.
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -47,16 +11,8 @@ HKDF_INFO = b"identicare-rotation-v1"
 
 
 def derive_rotation(kek: bytes, dim: int = 512) -> np.ndarray:
-    """Deterministically derive a secret orthogonal matrix from the KEK.
-
-    QR of a Gaussian matrix gives a Haar-uniform orthogonal Q. The diagonal sign
-    correction is what makes numpy's QR output canonical — without it the same
-    seed can yield sign-flipped columns across LAPACK versions, which would
-    silently invalidate every stored search_vector.
-    """
-    seed_bytes = HKDF(
-        algorithm=hashes.SHA256(), length=32, salt=None, info=HKDF_INFO
-    ).derive(kek)
+    """Deterministically derive a secret orthogonal matrix from the KEK."""
+    seed_bytes = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=HKDF_INFO).derive(kek)
     seed = int.from_bytes(seed_bytes, "big") % (2**32)
 
     rng = np.random.default_rng(seed)

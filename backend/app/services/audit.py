@@ -1,5 +1,3 @@
-"""Append-only logs: audit_log (who decrypted what) and verification_events."""
-
 from __future__ import annotations
 
 import logging
@@ -50,13 +48,8 @@ async def log_event(
     latency_ms: float | None = None,
     request_id: str | None = None,
 ) -> int:
-    """Append one event. Failures are logged too - a failed face scan is exactly
-    the signal the fraud engine wants, and `session.steps` only keeps the last
-    attempt.
-
-    `seq` is derived from the current count, and {session_id, seq} is unique, so
-    a retried request cannot double-append. On collision we retry once with the
-    next sequence number.
+    """Append one event. Failures are logged too - a failed face scan is exactly the signal the fraud engine
+    wants, and `session.steps` only keeps the last attempt.
     """
     for _ in range(3):
         seq = await db.verification_events.count_documents({"session_id": session_id})
