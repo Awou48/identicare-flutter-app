@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     face_collision_threshold: float = 0.55
     liveness_min_score: float = 0.70
     face_max_attempts: int = 3
+    # New sessions per participant per hour. Five is right for production - it
+    # caps fresh nonces and face attempts for someone abandoning sessions - and
+    # far too low for a developer testing on a phone. Raise it in .env.
+    sessions_per_hour: int = 5
     # Blur / dark / no-face captures are charged here instead. Generous, because
     # none of them is evidence about identity; bounded, so a session cannot be
     # used to probe the detector forever.

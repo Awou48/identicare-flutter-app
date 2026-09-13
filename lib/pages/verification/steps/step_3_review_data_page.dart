@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:identicare_mobile/models/verification_session.dart';
 import 'package:identicare_mobile/state/verification_flow_controller.dart';
 import 'package:identicare_mobile/widgets/verification/data_review_tile.dart';
 import 'package:identicare_mobile/widgets/verification/status_badge.dart';
@@ -26,9 +27,13 @@ class _Step3ReviewDataPageState extends State<Step3ReviewDataPage> {
     final controller = context.watch<VerificationFlowController>();
 
     // Data baru diambil ketika langkah ini benar-benar aktif: IndexedStack
-    // membangun semua anaknya, jadi memanggilnya di initState akan menembak
-    // endpoint yang masih dijaga 409.
-    if (!_requested && controller.reviewData == null && !controller.isBusy) {
+    // membangun semua anaknya, jadi build() ini juga berjalan saat pengguna
+    // masih di langkah 1. Tanpa pemeriksaan currentStep, permintaan review
+    // ditembakkan ke sesi yang masih 'created', server menjawab 409
+    // STEP_OUT_OF_ORDER, dan pesannya muncul di layar scan wajah sebagai
+    // "Langkah verifikasi tidak berurutan" - tanpa pengguna berbuat apa pun.
+    final active = controller.currentStep == SessionStep.review;
+    if (active && !_requested && controller.reviewData == null && !controller.isBusy) {
       _requested = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => controller.loadReview());
     }

@@ -49,6 +49,21 @@ W_COLOR = 0.15
 YAW_SHIFT_REQUIRED = 0.10
 AREA_GROWTH_REQUIRED = 0.25
 
+# Whether a turn must be in the COMMANDED direction, or any direction.
+#
+# yaw_proxy() is signed in image coordinates, and whether the front camera's
+# still is mirrored relative to the preview depends on the camera stack
+# (Camera2 vs CameraX vs vendor HAL). Until that sign is confirmed on real
+# devices, a turn the wrong way scores like no turn at all, and a genuine
+# user fails three times for following instructions. So: the magnitude of
+# the turn is what is scored; the signed shift is recorded in the signals so
+# the sign can be confirmed from production data, then this flipped to True.
+#
+# Cost while False: a replayed video containing a head turn satisfies both
+# turn challenges (2 of 3). It still cannot satisfy move_closer, still has to
+# pass motion, texture, moire and colour, and still cannot be a static photo.
+STRICT_TURN_DIRECTION = False
+
 # Keypoint displacement between frames ~340 ms apart. A hand-held phone measures
 # 2-8 px; a photo taped to a stand measures 0. An earlier curve peaked at ~20 px,
 # which scored real hand-held captures at 0.15 and would have failed genuine
@@ -104,11 +119,16 @@ class ActiveChallengeV1:
             )
 
         signals["challenge"] = self._challenge_score(faces, challenge)
+        signals["yaw_shift"] = faces[-1].yaw_proxy() - faces[0].yaw_proxy()
+        signals["area_growth"] = (faces[-1].area - faces[0].area) / max(faces[0].area, 1.0)
         signals["motion"] = self._motion_score(faces)
         signals["texture"] = self._texture_score(frames, faces)
         signals["moire"] = self._moire_score(frames, faces)
         signals["color"] = self._color_score(frames, faces)
 
+        # Diagnostics ride along in `signals` but must not be "the weakest
+        # signal" in the failure reason, nor part of the weighted score.
+        scored = {k: v for k, v in signals.items() if k not in ("yaw_shift", "area_growth")}
         score = (
             W_CHALLENGE * signals["challenge"]
             + W_MOTION * signals["motion"]
@@ -119,8 +139,8 @@ class ActiveChallengeV1:
         passed = score >= threshold
         reason = None
         if not passed:
-            weakest = min(signals, key=signals.get)
-            reason = f"sinyal terlemah: {weakest} ({signals[weakest]:.2f})"
+            weakest = min(scored, key=scored.get)
+            reason = f"sinyal terlemah: {weakest} ({scored[weakest]:.2f})"
         return LivenessResult(passed, round(float(score), 4), self.name, signals, reason)
 
     # ------------------------------------------------------------------ #
@@ -138,6 +158,8 @@ class ActiveChallengeV1:
         shift = last.yaw_proxy() - first.yaw_proxy()
         if challenge == "turn_right":
             shift = -shift
+        if not STRICT_TURN_DIRECTION:
+            shift = abs(shift)
         return float(np.clip(shift / YAW_SHIFT_REQUIRED, 0.0, 1.0))
 
     def _motion_score(self, faces: list[Face]) -> float:

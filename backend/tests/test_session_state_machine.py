@@ -338,7 +338,18 @@ def test_challenge_scoring() -> None:
     backend = liveness.ActiveChallengeV1()
     turned = [_face(200), _face(200, nose_dx=25)]
     assert backend._challenge_score(turned, "turn_left") == pytest.approx(1.0)
-    assert backend._challenge_score(turned, "turn_right") == 0.0
+    # Until the front-camera mirroring sign is confirmed on real devices the
+    # magnitude of the turn is scored, so the opposite direction passes too.
+    # Flip STRICT_TURN_DIRECTION and this becomes 0.0.
+    strict = liveness.STRICT_TURN_DIRECTION
+    try:
+        liveness.STRICT_TURN_DIRECTION = False
+        assert backend._challenge_score(turned, "turn_right") == pytest.approx(1.0)
+        liveness.STRICT_TURN_DIRECTION = True
+        assert backend._challenge_score(turned, "turn_right") == 0.0
+    finally:
+        liveness.STRICT_TURN_DIRECTION = strict
+    # A static face never satisfies a turn, in either mode.
     assert backend._challenge_score([_face(200), _face(200)], "turn_left") == 0.0
     # No challenge issued -> neutral, never a free pass.
     assert backend._challenge_score(turned, None) == 0.5
@@ -374,3 +385,18 @@ def test_expiry_is_computed_from_expires_at() -> None:
     past = datetime.now(UTC) - timedelta(seconds=1)
     future = datetime.now(UTC) + timedelta(minutes=5)
     assert past < datetime.now(UTC) < future
+
+
+# --------------------------------------------------------------------------- #
+# Placeholder templates
+# --------------------------------------------------------------------------- #
+def test_seeded_placeholder_is_never_an_enrolment() -> None:
+    """seed_peserta.py writes random unit vectors tagged PLACEHOLDER_*. On the
+    first device test they made the app believe the participant was enrolled,
+    skip self-enrolment, and then fail every match at cosine ~0.05."""
+    assert matcher.is_placeholder({"model": {"name": "PLACEHOLDER_random_unit_vector"}})
+    assert not matcher.is_placeholder({"model": {"name": "w600k_r50"}})
+    assert not matcher.is_placeholder({})
+    assert not matcher.is_placeholder(None)
+    # The Mongo filter used by get_active_template and the 1:N sweep.
+    assert matcher.REAL_TEMPLATE_FILTER == {"model.name": {"$not": {"$regex": "^PLACEHOLDER"}}}

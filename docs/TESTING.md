@@ -170,9 +170,22 @@ oval, jangan terlalu jauh.
 
 ### 4.2 Langkah 1 — Scan Wajah
 
-1. Instruksi tantangan muncul di atas oval (*"Palingkan wajah ke kiri"* /
-   *"ke kanan"* / *"Dekatkan wajah"*). **Ikuti** sambil 3 frame diambil.
-2. **Yang harus terlihat:** oval hijau, lanjut ke langkah 2.
+Liveness dinilai dari **perubahan** antara frame pertama dan terakhir, jadi
+urutannya penting:
+
+1. Di atas oval tertulis apa yang *nanti* diminta, mis. *"Siap? Nanti Anda
+   diminta: palingkan wajah ke kanan"*. Jangan menoleh dulu.
+2. Ketuk **Mulai Scan Wajah** → *"Hadapkan wajah lurus ke kamera"* (~1 detik,
+   frame 1 diambil).
+3. Instruksi berganti menjadi *"Palingkan wajah ke kanan - sekarang!"* →
+   **baru menoleh**, tahan sampai hitungan 3/3.
+   Untuk *"Dekatkan wajah"*: majukan ponsel ~10 cm.
+4. **Yang harus terlihat:** oval hijau, lanjut ke langkah 2.
+
+Gambar buram / gelap / wajah tidak terdeteksi **tidak** mengurangi 3
+percobaan — hanya wajah tidak cocok dan liveness gagal yang dihitung. Kalau
+liveness gagal, sisi server menyimpan rinciannya: `mongosh` →
+`db.verification_sessions.find({},{ "steps.face.liveness_signals":1 }).sort({created_at:-1}).limit(1)`.
 
 Dua hal yang saya ingin tahu dari Anda di sini, karena keduanya belum pernah
 diuji dengan wajah manusia sungguhan:
