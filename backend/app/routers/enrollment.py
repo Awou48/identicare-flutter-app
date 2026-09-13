@@ -21,7 +21,7 @@ from app import db as database
 from app.deps import CurrentUserDep, DbDep, OperatorDep, RequestIdDep, SettingsDep
 from app.schemas.common import OkResponse
 from app.schemas.peserta import PesertaCreate, PesertaCreated
-from app.security import crypto, rotation
+from app.security import attestation, crypto, rotation
 from app.services import audit, enrollment_service, face_engine, matcher
 from app.utils import images
 from app.utils.errors import ApiError
@@ -50,9 +50,7 @@ async def upsert_peserta(
         "nik_hash": nik_hash,
         "nik_last4": payload.nik[-4:],
         "nama_lengkap": payload.nama_lengkap,
-        "tanggal_lahir": datetime.combine(payload.tanggal_lahir, datetime.min.time()).replace(
-            tzinfo=UTC
-        ),
+        "tanggal_lahir": datetime.combine(payload.tanggal_lahir, datetime.min.time()).replace(tzinfo=UTC),
         "jenis_kelamin": payload.jenis_kelamin,
         "alamat": payload.alamat.model_dump(),
         "kelas_rawat": payload.kelas_rawat,
@@ -176,9 +174,7 @@ async def enroll_self(
         actor=user.uid,
         request_id=request_id,
     )
-    result["claim_ceiling"] = enrollment_service.ceiling_for(
-        enrollment_service.ASSURANCE_SELF
-    )
+    result["claim_ceiling"] = enrollment_service.ceiling_for(enrollment_service.ASSURANCE_SELF)
     return result
 
 
@@ -446,9 +442,7 @@ async def probe_face(
                 "nama": (names.get(h["peserta_id"]) or {}).get("nama_lengkap"),
                 "no_bpjs": (names.get(h["peserta_id"]) or {}).get("no_bpjs"),
                 "score": h["score"],
-                "verdict": matcher.decide(
-                    h["score"], settings.face_match_accept, settings.face_match_review
-                ),
+                "verdict": matcher.decide(h["score"], settings.face_match_accept, settings.face_match_review),
             }
             for h in top
         ],
@@ -526,10 +520,43 @@ async def enroll_device(
         pub = payload.get("public_key_der_b64")
         if not pub:
             raise ApiError("VALIDATION_ERROR", 422, details={"field": "public_key_der_b64"})
-        doc["public_key_der"] = base64.b64decode(pub)
+        public_key_der = base64.b64decode(pub)
+        # Refuse anything that is not an EC P-256 SubjectPublicKeyInfo now,
+        # rather than at the first signature check.
+        probe = attestation.verify_ec_p256(payload="x", signature=b"", public_key_der=public_key_der)
+        if probe.error_code == "KEY_MISMATCH":
+            raise ApiError(
+                "VALIDATION_ERROR", 422, details={"field": "public_key_der_b64", **(probe.detail or {})}
+            )
+
+        chain = [base64.b64decode(c) for c in payload.get("attestation_chain_b64") or []]
+        evaluated = attestation.evaluate_attestation_chain(
+            chain, public_key_der=public_key_der, expected_challenge=device_uid.encode("utf-8")
+        )
+        # user_auth_required comes from the TEE-enforced authorization list in
+        # the certificate, not from the app. A key the hardware will sign with
+        # WITHOUT a fingerprint is not a second factor, whatever its level.
+        evaluated["client_security_level"] = payload.get("client_security_level")
+        if evaluated["user_auth_required"] is False:
+            evaluated["security_level"] = "SOFTWARE"
+            evaluated["error"] = "key is usable without user authentication"
+
+        doc["public_key_der"] = public_key_der
         doc["key_alias"] = payload.get("key_alias", "identicare_bpjs_v1")
-        doc["trust_level"] = "hardware"
-        doc["attestation"] = {"chain_verified": False, "security_level": "TEE"}
+        # "hardware" only when the certificate chain says so about THIS key.
+        # A keystore key without a usable chain is still stronger than an HMAC
+        # secret (it cannot be exported), but the server has no evidence of
+        # that, so it does not get the label.
+        doc["trust_level"] = "hardware" if evaluated["security_level"] in ("TEE", "STRONGBOX") else "software"
+        doc["attestation"] = evaluated
+        log.info(
+            "device %s keystore enrolment: level=%s key_matches=%s challenge_ok=%s chain=%d",
+            device_uid[:12],
+            evaluated["security_level"],
+            evaluated["key_matches"],
+            evaluated["challenge_ok"],
+            evaluated["chain_length"],
+        )
     else:
         secret = payload.get("shared_secret_b64")
         if not secret:
