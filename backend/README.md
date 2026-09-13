@@ -129,77 +129,56 @@ backend/
 │  ├─ config.py          pydantic-settings, reads .env
 │  ├─ db.py  deps.py     async Mongo handle, DI dependencies
 │  ├─ db_schema.py       collections, $jsonSchema validators, indexes
-│  ├─ routers/           health enrollment sessions face fingerprint
-│  │                     history fraud symptoms
+│  ├─ routers/           health peserta enrollment sessions face fingerprint
+│  │                     override staff history fraud articles symptoms
 │  ├─ services/          face_engine liveness matcher session_service
-│  │                     fraud_rules audit
+│  │                     enrollment_service fraud_rules audit
 │  ├─ schemas/           pydantic request/response models
 │  ├─ utils/             images errors geo
 │  └─ security/
 │     ├─ crypto.py       AES-256-GCM envelope encryption, NIK hashing/masking
 │     ├─ rotation.py     secret orthogonal matrix for the 1:N search index
-│     ├─ firebase_auth.py  Firebase ID token verification (+ dev bypass)
-│     ├─ attestation.py    HMAC (Tier A) and EC P-256 Keystore (Tier B)
+│     ├─ firebase_auth.py  Firebase ID token verification via Google public keys
+│     ├─ staff_auth.py     staff passwords (scrypt) and short-lived staff tokens
+│     ├─ attestation.py    HMAC (Tier A), EC P-256 (Tier B), key attestation parsing
 │     └─ nonce.py          atomic single-use nonce consumption
 ├─ scripts/
 │  ├─ gen_keys.py        KEK + rotation matrix
+│  ├─ use_atlas.py       point .env at Atlas, bootstrap and seed in one go
 │  ├─ bootstrap.py       create collections/validators/indexes (idempotent)
-│  ├─ seed_peserta.py    4 faskes, 20 peserta, 15 placeholder templates
+│  ├─ seed_peserta.py    4 faskes, 20 peserta (placeholder templates never count as enrolment)
+│  ├─ seed_articles.py   health articles
 │  ├─ check_face_models.py  prove the ONNX pipeline works (run this FIRST)
-│  ├─ enroll_me.py          enrol a REAL face so the demo works
+│  ├─ enroll_me.py          enrol a real face from the command line
 │  ├─ e2e_demo.py           drive the whole flow over HTTP, then attack it
 │  └─ _synth_faces.py       synthetic fixtures - READ ITS CAVEATS
-├─ tests/
-│  ├─ test_crypto_roundtrip.py       encryption + AAD document binding
-│  ├─ test_rotation_invariance.py    cos(Rx,Ry) == cos(x,y)
-│  ├─ test_session_state_machine.py  ordering, fraud rules, attestation, liveness
-│  └─ test_schema_indexes.py         live-DB checks (skips without Mongo)
+├─ tests/                   176 tests; live-DB ones skip without Mongo
 └─ docs/SCHEMA.md         why the schema looks like this
 ```
 
 ## API
 
-Base `/api/v1`. Swagger at `/docs`. Peserta endpoints take
-`Authorization: Bearer <Firebase ID token>`; flow steps additionally require
-`X-Session-Token`; facility and operator endpoints take `X-Api-Key`.
+Base `/api/v1`, Swagger at `/docs`. The full endpoint reference, auth model,
+response envelope and error codes are in [docs/API.md](../docs/API.md).
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/health` | model + db readiness |
-| POST | `/enrollment/peserta` `/face` `/device` | operator enrolment |
-| DELETE | `/enrollment/face/{peserta_id}` | revoke (right to erasure) |
-| POST | `/verification/sessions` | **start** |
-| GET | `/verification/sessions/{id}` | resume |
-| POST | `/verification/sessions/{id}/liveness/challenge` | issue challenge |
-| POST | `/verification/sessions/{id}/face` | **step 1** (multipart) |
-| POST | `/verification/sessions/{id}/fingerprint` | **step 2** |
-| GET/POST | `/verification/sessions/{id}/review` | **step 3** |
-| POST | `/verification/sessions/{id}/commit` | **step 4** (idempotent) |
-| POST | `/verification/sessions/{id}/cancel` | abort |
-| GET | `/verification/history[/{id}]` | cursor-paginated log |
-| POST/GET | `/fraud/check` `/fraud/signals` `/fraud/rules` | operator |
-| POST | `/analyze_symptoms` | legacy compat, revived via Ollama |
+Two conventions worth knowing before reading any handler:
 
-### Two response conventions worth knowing
-
-**A failed biometric step returns HTTP 200**, with `result: "failed"` and an
+**A failed biometric step returns HTTP 200** with `result: "failed"` and an
 `error_code`. A face mismatch is the system working correctly, and the UI has to
-render the score and the remaining attempts. A 4xx would be swallowed by
-Flutter's generic error handling and the user would see "terjadi kesalahan"
-instead of the real reason. 4xx is reserved for protocol errors: 409 for a step
-out of order, 410 for an expired session, 403 for a bad token.
+render the score and the remaining attempts. 4xx is reserved for protocol
+errors: 409 for a step out of order, 410 for an expired session, 403 for a bad
+token.
 
 **Participant data is masked until step 3.** Session start returns only
-`Marcel I******** / 000*******890`. The full record is revealed only after BOTH
-biometric factors pass - otherwise anyone who guesses a BPJS number could read
-someone's record.
+`Marcel I******** / 000*******890`. The full record is revealed after BOTH
+biometric factors pass.
 
-## Dev-mode auth
+## Auth in development
 
-With no `keys/firebase-adminsdk.json` present AND `IDENTICARE_ENV=dev`, the API
-accepts `Authorization: Bearer dev:<uid>`. It is refused in any other
-environment and every use is logged as a warning. Drop the real service-account
-JSON in to switch to genuine Firebase verification - no code change.
+Firebase ID tokens are verified against Google's public keys using only the
+project id; no service-account file is needed. With `IDENTICARE_ENV=dev` the
+API additionally accepts `Authorization: Bearer dev:<uid>` so scripts can act
+as a user. It is refused in any other environment and every use is logged.
 
 ## What is verified, and what is not
 

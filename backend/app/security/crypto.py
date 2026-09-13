@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import os
@@ -20,6 +21,13 @@ def generate_kek() -> bytes:
 
 
 def load_kek(path: str | Path) -> bytes:
+    """The KEK from KEK_B64 in the environment if set, otherwise from `path`."""
+    from_env = os.environ.get("KEK_B64", "").strip()
+    if from_env:
+        kek = base64.b64decode(from_env)
+        if len(kek) != KEK_BYTES:
+            raise ValueError(f"KEK_B64 decodes to {len(kek)} bytes, expected {KEK_BYTES}.")
+        return kek
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"KEK not found at {path}. Run: python scripts/gen_keys.py")
