@@ -17,7 +17,7 @@ via onnxruntime), active-challenge liveness, TEE-attested fingerprint signatures
 a server-side four-step claim state machine and a fraud-rule engine, all on
 MongoDB Atlas with per-document AES-256-GCM envelope encryption.
 
-Source and documentation: <https://github.com/Awou48/identicare-flutter-app>
+Source and documentation: <https://github.com/Awou48/identicare>
 
 ## Secrets this Space needs
 
