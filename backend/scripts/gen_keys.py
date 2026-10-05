@@ -4,6 +4,7 @@ import argparse
 import secrets
 import sys
 
+import _bootstrap_path  # noqa: F401
 from app.config import get_settings
 from app.security import crypto, rotation
 

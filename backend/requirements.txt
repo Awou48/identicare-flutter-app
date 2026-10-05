@@ -8,7 +8,8 @@ pydantic-settings>=2.6,<3
 python-multipart>=0.0.12
 
 # Driver: pymongo>=4.10 ships AsyncMongoClient natively. Do NOT use motor (deprecated).
-pymongo[srv]>=4.10,<5
+pymongo>=4.10,<5                      # pulls dnspython, so mongodb+srv:// resolves
+# NOTE: the [srv] extra was removed upstream; requesting it only emits a warning.
 
 numpy>=1.26,<3
 opencv-python-headless>=4.10        # headless: no Qt DLLs to fight on Windows

@@ -8,6 +8,7 @@ import numpy as np
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
+import _bootstrap_path  # noqa: F401
 from app.config import get_settings
 from app.security import crypto, rotation
 

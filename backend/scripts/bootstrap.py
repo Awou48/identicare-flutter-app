@@ -6,6 +6,7 @@ import sys
 from pymongo import MongoClient
 from pymongo.errors import CollectionInvalid, OperationFailure, ServerSelectionTimeoutError
 
+import _bootstrap_path  # noqa: F401
 from app.config import get_settings
 from app.db_schema import COLLECTIONS, INDEXES, VALIDATORS
 

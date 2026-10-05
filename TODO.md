@@ -1,5 +1,11 @@
 # TODO — Refactor IdentiCare menuju Sistem Anti-Fraud Berbasis AI
 
+> **Historical document — do not read as current status.** This was the audit
+> written at the start of the rebuild, when the Flutter app had no verification
+> flow and no backend existed. Both were built afterwards. It is kept because it
+> records what the codebase looked like before the work and why each change was
+> made. For the current state see [README.md](README.md).
+
 Dokumen ini memetakan seluruh logika hardcoded, konfigurasi rusak, dan utang teknis
 pada codebase Flutter saat ini yang harus dibereskan sebelum sistem verifikasi
 biometrik dinamis (face recognition + liveness + sidik jari) dapat dibangun di atasnya.

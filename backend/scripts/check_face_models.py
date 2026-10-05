@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
+import _bootstrap_path  # noqa: F401
 from app.config import get_settings
 from app.security import rotation
 from app.services import face_engine

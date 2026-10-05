@@ -6,6 +6,7 @@ from pathlib import Path
 
 import httpx
 
+import _bootstrap_path  # noqa: F401
 from app.config import get_settings
 
 DEFAULT_NIK = "3174050412010001"

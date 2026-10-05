@@ -61,3 +61,6 @@ backend/models/
 
 # Android release signing
 android/key.properties
+
+# Local face captures used for manual enrolment testing. Biometric data, never commit.
+my_photos/
